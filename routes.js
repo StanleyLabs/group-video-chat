@@ -1,13 +1,10 @@
-// Setup
 const express = require('express')
-const bodyParser = require('body-parser')
 
 const routes = express()
 
 routes.use(express.static('public'))
-
-// Enable for POST requests
-//routes.use(express.bodyParser());
+routes.use(express.json())
+routes.use(express.urlencoded({ extended: true }))
 
 routes.get('/test', (req, res) => {
     res.send('😊')
