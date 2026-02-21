@@ -178,6 +178,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
         localVideoRef.current.muted = true
+        localVideoRef.current.volume = 0
       }
 
       if (MUTE_AUDIO_BY_DEFAULT) {
@@ -462,7 +463,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group">
         <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
-            ref={localVideoRef}
+            ref={(el) => {
+              localVideoRef.current = el
+              if (el) { el.muted = true; el.volume = 0 }
+            }}
             autoPlay
             playsInline
             muted
