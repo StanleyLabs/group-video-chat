@@ -231,7 +231,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (MUTE_AUDIO_BY_DEFAULT) {
         videoElement.setAttribute('muted', 'true')
       }
-      videoElement.className = 'w-full h-full object-cover rounded-xl border border-white/10 bg-graphite'
+      videoElement.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite'
       videoElement.srcObject = event.streams[0]
 
       const label = document.createElement('div')
@@ -403,9 +403,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
-  // Grid classes based on peer count for maximum space usage
-  const gridClasses = peerCount === 1
-    ? 'flex items-center justify-center'
+  // Always use grid — column count adapts but sizing stays consistent
+  const gridClasses = peerCount <= 1
+    ? 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
     : peerCount <= 4
       ? 'grid grid-cols-1 sm:grid-cols-2 gap-4'
       : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
@@ -443,17 +443,15 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area — remote peers centered */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <div className="mx-auto max-w-7xl h-full">
+        <div className="mx-auto max-w-5xl h-full flex items-center justify-center">
           {peerCount === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="text-center">
               <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
               <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center">
-              <div className={`${peerCount === 1 ? 'w-full max-w-3xl' : 'w-full max-w-5xl'} ${gridClasses}`}>
-                <div ref={videoGridRef} className="contents" />
-              </div>
+            <div className={`w-full ${gridClasses}`}>
+              <div ref={videoGridRef} className="contents" />
             </div>
           )}
         </div>
