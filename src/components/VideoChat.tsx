@@ -30,26 +30,16 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
   useEffect(() => {
     const initConnection = async () => {
-      console.log('Connecting to signaling server')
       const socket = io()
       socketRef.current = socket
 
       socket.on('connect', async () => {
-        console.log('Connected to signaling server')
         setIsConnected(true)
-        
-        // Setup local media
         await setupLocalMedia()
-        
-        // Join the room
-        socket.emit('join', {
-          channel: roomId,
-          userdata: { name: '' },
-        })
+        socket.emit('join', { channel: roomId, userdata: { name: '' } })
       })
 
       socket.on('disconnect', () => {
-        console.log('Disconnected from signaling server')
         setIsConnected(false)
         cleanup()
       })
@@ -91,22 +81,18 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     if (localStreamRef.current) return
 
     try {
-      console.log('Requesting access to local audio / video inputs')
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: USE_AUDIO,
         video: USE_VIDEO,
       })
 
-      console.log('Access granted to audio/video')
       localStreamRef.current = stream
 
-      // Display local video
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
         localVideoRef.current.muted = true
       }
 
-      // Apply initial mute state
       if (MUTE_AUDIO_BY_DEFAULT) {
         stream.getAudioTracks().forEach(track => track.enabled = false)
       }
@@ -117,13 +103,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   }
 
   const handleAddPeer = async (config: { peer_id: string; should_create_offer: boolean }) => {
-    console.log('Signaling server said to add peer:', config)
     const peerId = config.peer_id
 
-    if (peersRef.current[peerId]) {
-      console.log(`Already connected to peer ${peerId}`)
-      return
-    }
+    if (peersRef.current[peerId]) return
 
     const peerConnection = new RTCPeerConnection({
       iceServers: ICE_SERVERS,
@@ -133,7 +115,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     peersRef.current[peerId] = peerConnection
     setPeerCount(Object.keys(peersRef.current).length)
 
-    // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
         socketRef.current.emit('relayICECandidate', {
@@ -146,27 +127,22 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       }
     }
 
-    // Handle incoming tracks
     peerConnection.ontrack = (event) => {
-      console.log('onTrack', event)
       if (event.track.kind === 'audio' && USE_VIDEO) return
 
-      // Create container for remote video with label
       const container = document.createElement('div')
-      container.className = 'relative group'
+      container.className = 'relative'
       container.dataset.peerId = peerId
 
-      // Create video element for remote peer
       const videoElement = document.createElement('video')
       videoElement.setAttribute('autoplay', 'true')
       videoElement.setAttribute('playsinline', 'true')
       if (MUTE_AUDIO_BY_DEFAULT) {
         videoElement.setAttribute('muted', 'true')
       }
-      videoElement.className = 'w-full aspect-video object-cover rounded-xl border border-white/10 bg-graphite'
+      videoElement.className = 'w-full h-full object-cover rounded-xl border border-white/10 bg-graphite'
       videoElement.srcObject = event.streams[0]
 
-      // Create label overlay
       const label = document.createElement('div')
       label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper'
       label.textContent = `Peer ${peerId.slice(0, 8)}`
@@ -179,7 +155,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       }
     }
 
-    // Add local stream tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         if (localStreamRef.current) {
@@ -188,12 +163,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       })
     }
 
-    // Create offer if needed
     if (config.should_create_offer) {
-      console.log(`Creating RTC offer to ${peerId}`)
       try {
         const localDescription = await peerConnection.createOffer()
-        console.log('Local offer description is:', localDescription)
         await peerConnection.setLocalDescription(localDescription)
         
         if (socketRef.current) {
@@ -202,7 +174,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             session_description: localDescription,
           })
         }
-        console.log('Offer setLocalDescription succeeded')
       } catch (error) {
         console.error('Error sending offer:', error)
       }
@@ -213,7 +184,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     peer_id: string
     session_description: RTCSessionDescriptionInit
   }) => {
-    console.log('Remote description received:', config)
     const peerId = config.peer_id
     const peer = peersRef.current[peerId]
     if (!peer) return
@@ -222,12 +192,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
     try {
       await peer.setRemoteDescription(new RTCSessionDescription(remoteDescription))
-      console.log('setRemoteDescription succeeded')
 
       if (remoteDescription.type === 'offer') {
-        console.log('Creating answer')
         const localDescription = await peer.createAnswer()
-        console.log('Answer description is:', localDescription)
         await peer.setLocalDescription(localDescription)
 
         if (socketRef.current) {
@@ -236,7 +203,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             session_description: localDescription,
           })
         }
-        console.log('Answer setLocalDescription succeeded')
       }
     } catch (error) {
       console.error('setRemoteDescription error:', error)
@@ -254,24 +220,19 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   }
 
   const handleRemovePeer = (config: { peer_id: string }) => {
-    console.log('Signaling server said to remove peer:', config)
     const peerId = config.peer_id
 
-    // Remove video container
     if (videoGridRef.current) {
       const container = videoGridRef.current.querySelector(
         `div[data-peer-id="${peerId}"]`
       )
       if (container) {
         const videoElement = container.querySelector('video') as HTMLVideoElement
-        if (videoElement) {
-          videoElement.srcObject = null
-        }
+        if (videoElement) videoElement.srcObject = null
         container.remove()
       }
     }
 
-    // Close peer connection
     if (peersRef.current[peerId]) {
       peersRef.current[peerId].close()
       delete peersRef.current[peerId]
@@ -280,20 +241,15 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   }
 
   const cleanup = () => {
-    // Stop local stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop())
       localStreamRef.current = null
     }
 
-    // Close all peer connections
-    Object.values(peersRef.current).forEach((peer) => {
-      peer.close()
-    })
+    Object.values(peersRef.current).forEach((peer) => peer.close())
     peersRef.current = {}
     setPeerCount(0)
 
-    // Clear video elements
     if (videoGridRef.current) {
       videoGridRef.current.innerHTML = ''
     }
@@ -302,9 +258,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const toggleAudio = () => {
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks()
-      audioTracks.forEach(track => {
-        track.enabled = !track.enabled
-      })
+      audioTracks.forEach(track => { track.enabled = !track.enabled })
       setIsAudioMuted(!audioTracks[0]?.enabled)
     }
   }
@@ -312,9 +266,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const toggleVideo = () => {
     if (localStreamRef.current) {
       const videoTracks = localStreamRef.current.getVideoTracks()
-      videoTracks.forEach(track => {
-        track.enabled = !track.enabled
-      })
+      videoTracks.forEach(track => { track.enabled = !track.enabled })
       setIsVideoMuted(!videoTracks[0]?.enabled)
     }
   }
@@ -328,15 +280,15 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-ink text-white flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
-        <div className="container mx-auto flex items-center justify-between">
+      <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-3">
+        <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-display font-semibold text-paper">
               Room: <span className="text-electric font-mono">{roomId}</span>
             </h2>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
               <span className="text-xs font-mono text-fog">
                 {isConnected ? 'Connected' : 'Connecting...'}
@@ -357,24 +309,24 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Video grid */}
-      <div className="flex-1 p-6 overflow-auto">
-        <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+      {/* Video grid — fills available space */}
+      <div className="flex-1 min-h-0 p-4 overflow-auto">
+        <div className="mx-auto max-w-7xl h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full auto-rows-fr">
             {/* Local video */}
-            <div className="relative group">
+            <div className="relative">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full aspect-video object-cover rounded-xl border-2 border-electric bg-graphite shadow-glow-electric"
+                className="w-full h-full object-cover rounded-xl border-2 border-electric bg-graphite"
               />
               <div className="absolute top-3 left-3 px-3 py-1.5 bg-electric/90 backdrop-blur-sm border border-electric rounded-lg text-xs font-semibold text-white">
                 You
               </div>
               {isVideoMuted && (
-                <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 rounded-xl">
+                <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 rounded-xl border-2 border-electric">
                   <div className="text-center">
                     <div className="text-4xl mb-2">📹</div>
                     <div className="text-sm text-fog">Camera off</div>
@@ -383,15 +335,15 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               )}
             </div>
             
-            {/* Remote videos container */}
+            {/* Remote videos */}
             <div ref={videoGridRef} className="contents" />
           </div>
         </div>
       </div>
 
       {/* Controls bar */}
-      <div className="border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-6">
-        <div className="container mx-auto flex justify-center items-center gap-4">
+      <div className="shrink-0 border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
+        <div className="mx-auto max-w-7xl flex justify-center items-center gap-4">
           <button
             onClick={toggleAudio}
             className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${

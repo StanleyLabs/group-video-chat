@@ -14,10 +14,10 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-ink grain">
+    <div className="h-full flex flex-col bg-ink grain overflow-hidden">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-ink/80 backdrop-blur-xl">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="shrink-0 border-b border-white/10 bg-ink/80 backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-display font-semibold text-paper">
             Stanley Labs
           </h1>
@@ -25,14 +25,14 @@ function App() {
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="pt-16">
+      {/* Main content — fills remaining space, no overflow */}
+      <main className="flex-1 min-h-0">
         {!roomId ? (
           <JoinForm onJoin={handleJoinRoom} />
         ) : (
           <VideoChat roomId={roomId} onLeave={handleLeaveRoom} />
         )}
-      </div>
+      </main>
     </div>
   )
 }

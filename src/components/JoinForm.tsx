@@ -15,15 +15,15 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
   }
 
   return (
-    <section className="w-screen min-h-[calc(100vh-64px)] flex justify-center items-center bg-ink relative overflow-hidden">
+    <section className="h-full flex justify-center items-center relative overflow-hidden">
       {/* Background gradient accents */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-electric/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-electric/5 rounded-full blur-3xl" />
       </div>
 
       {/* Card */}
-      <div className="relative z-10 p-10 w-full max-w-md bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl">
+      <div className="relative z-10 p-10 w-full max-w-md mx-4 bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl shadow-2xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-display font-bold text-paper mb-3">
             Group Video Chat
