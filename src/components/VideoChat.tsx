@@ -285,13 +285,11 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   }
 
   // Grid classes based on peer count for maximum space usage
-  const gridClasses = peerCount === 0
+  const gridClasses = peerCount === 1
     ? 'flex items-center justify-center'
-    : peerCount === 1
+    : peerCount <= 4
       ? 'grid grid-cols-2 gap-4'
-      : peerCount <= 3
-        ? 'grid grid-cols-2 gap-4'
-        : 'grid grid-cols-2 lg:grid-cols-3 gap-4'
+      : 'grid grid-cols-2 lg:grid-cols-3 gap-4'
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -336,7 +334,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           ) : (
             /* Peers grid — centered and max space */
             <div className="h-full flex items-center justify-center">
-              <div className={`w-full max-w-5xl ${gridClasses}`}>
+              <div className={`${peerCount === 1 ? 'w-full max-w-3xl' : 'w-full max-w-5xl'} ${gridClasses}`}>
                 <div ref={videoGridRef} className="contents" />
               </div>
             </div>
