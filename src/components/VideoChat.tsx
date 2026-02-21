@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
+import DeviceSelect from './DeviceSelect'
 
 interface VideoChatProps {
   roomId: string
@@ -466,43 +467,23 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           </div>
 
           <div className="space-y-4">
-            {/* Microphone select */}
-            <div>
-              <label className="flex items-center gap-2 text-xs font-medium text-fog mb-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
-                Microphone
-              </label>
-              <select
-                value={selectedAudioDevice}
-                onChange={(e) => replaceTrack('audio', e.target.value)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-paper outline-none focus:border-electric transition-all appearance-none cursor-pointer"
-              >
-                {audioDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId} className="bg-graphite text-paper">
-                    {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <DeviceSelect
+              label="Microphone"
+              icon={<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>}
+              devices={audioDevices}
+              selectedDeviceId={selectedAudioDevice}
+              onSelect={(id) => replaceTrack('audio', id)}
+              fallbackLabel="Microphone"
+            />
 
-            {/* Camera select */}
-            <div>
-              <label className="flex items-center gap-2 text-xs font-medium text-fog mb-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                Camera
-              </label>
-              <select
-                value={selectedVideoDevice}
-                onChange={(e) => replaceTrack('video', e.target.value)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-paper outline-none focus:border-electric transition-all appearance-none cursor-pointer"
-              >
-                {videoDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId} className="bg-graphite text-paper">
-                    {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <DeviceSelect
+              label="Camera"
+              icon={<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>}
+              devices={videoDevices}
+              selectedDeviceId={selectedVideoDevice}
+              onSelect={(id) => replaceTrack('video', id)}
+              fallbackLabel="Camera"
+            />
           </div>
         </div>
       )}
