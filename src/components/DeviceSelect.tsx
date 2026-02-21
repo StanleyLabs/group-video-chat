@@ -53,7 +53,7 @@ export default function DeviceSelect({ label, icon, devices, selectedDeviceId, o
       {/* Dropdown menu */}
       {isOpen && devices.length > 0 && (
         <div className="absolute bottom-full left-0 right-0 mb-1 bg-graphite border border-white/10 rounded-lg shadow-2xl overflow-hidden z-50">
-          <div className="max-h-48 overflow-y-auto py-1">
+          <div className="max-h-48 overflow-y-auto py-1 subtle-scroll">
             {devices.map((device, i) => {
               const deviceLabel = device.label || `${fallbackLabel} ${i + 1}`
               const isSelected = device.deviceId === selectedDeviceId
