@@ -288,8 +288,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const gridClasses = peerCount === 1
     ? 'flex items-center justify-center'
     : peerCount <= 4
-      ? 'grid grid-cols-2 gap-4'
-      : 'grid grid-cols-2 lg:grid-cols-3 gap-4'
+      ? 'grid grid-cols-1 sm:grid-cols-2 gap-4'
+      : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
