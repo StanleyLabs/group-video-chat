@@ -417,8 +417,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
       {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-4 sm:px-6 py-3">
-        <div className="mx-auto max-w-7xl flex items-center justify-between gap-3">
+      <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm">
+        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-sm sm:text-lg font-display font-semibold text-paper truncate">
               Room: <span className="text-electric font-mono">{roomId}</span>
