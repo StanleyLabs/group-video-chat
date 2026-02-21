@@ -131,7 +131,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (event.track.kind === 'audio' && USE_VIDEO) return
 
       const container = document.createElement('div')
-      container.className = 'relative'
+      container.className = 'relative aspect-video'
       container.dataset.peerId = peerId
 
       const videoElement = document.createElement('video')
@@ -311,10 +311,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Video grid — fills available space */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <div className="mx-auto max-w-7xl h-full">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full auto-rows-fr">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Local video */}
-            <div className="relative">
+            <div className="relative aspect-video">
               <video
                 ref={localVideoRef}
                 autoPlay
