@@ -13,7 +13,7 @@ routes.get('/test', (req, res) => {
 })
 
 // SPA fallback
-routes.get('*', (req, res) => {
+routes.get('/{*splat}', (req, res) => {
     res.sendFile(resolve('dist', 'index.html'))
 })
 
