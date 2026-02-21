@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #111827;
+  color: #f4f3ff;
+  font-family: 'Montserrat', sans-serif;
+}
+
+video {
+  border-radius: 12px;
+  object-fit: cover;
+}
