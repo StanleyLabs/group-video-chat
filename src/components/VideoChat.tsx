@@ -282,29 +282,30 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-3">
-        <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-display font-semibold text-paper">
+      <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-4 sm:px-6 py-3">
+        <div className="mx-auto max-w-7xl flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-sm sm:text-lg font-display font-semibold text-paper truncate">
               Room: <span className="text-electric font-mono">{roomId}</span>
             </h2>
-            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full shrink-0">
               <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-              <span className="text-xs font-mono text-fog">
+              <span className="text-xs font-mono text-fog whitespace-nowrap">
                 {isConnected ? 'Connected' : 'Connecting...'}
               </span>
             </div>
+            <span className="sm:hidden w-2 h-2 rounded-full shrink-0" style={{ background: isConnected ? '#22c55e' : '#6b7280' }} />
             {peerCount > 0 && (
-              <div className="text-xs font-mono text-fog">
+              <div className="text-xs font-mono text-fog whitespace-nowrap shrink-0">
                 {peerCount} {peerCount === 1 ? 'peer' : 'peers'}
               </div>
             )}
           </div>
           <button
             onClick={handleLeave}
-            className="px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm"
+            className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
           >
-            Leave Room
+            Leave
           </button>
         </div>
       </div>
@@ -328,8 +329,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               {isVideoMuted && (
                 <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 rounded-xl border-2 border-electric">
                   <div className="text-center">
-                    <div className="text-4xl mb-2">📹</div>
-                    <div className="text-sm text-fog">Camera off</div>
+                    <svg className="w-10 h-10 text-fog/60 mx-auto mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
+                    <div className="text-sm text-fog/60">Camera off</div>
                   </div>
                 </div>
               )}
@@ -343,37 +344,45 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Controls bar */}
       <div className="shrink-0 border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
-        <div className="mx-auto max-w-7xl flex justify-center items-center gap-4">
+        <div className="mx-auto max-w-7xl flex justify-center items-center gap-3">
           <button
             onClick={toggleAudio}
-            className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
               isAudioMuted
-                ? 'bg-signal border-signal text-white hover:brightness-110'
+                ? 'bg-signal text-white hover:brightness-110'
                 : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
             } active:scale-[0.95]`}
             title={isAudioMuted ? 'Unmute microphone' : 'Mute microphone'}
           >
-            {isAudioMuted ? '🔇' : '🎤'}
+            {isAudioMuted ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
+            )}
           </button>
           
           <button
             onClick={toggleVideo}
-            className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
               isVideoMuted
-                ? 'bg-signal border-signal text-white hover:brightness-110'
+                ? 'bg-signal text-white hover:brightness-110'
                 : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
             } active:scale-[0.95]`}
             title={isVideoMuted ? 'Turn on camera' : 'Turn off camera'}
           >
-            {isVideoMuted ? '📷' : '🎥'}
+            {isVideoMuted ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+            )}
           </button>
           
           <button
             onClick={handleLeave}
-            className="w-14 h-14 rounded-full bg-signal text-white flex items-center justify-center text-2xl transition-all hover:brightness-110 active:scale-[0.95]"
+            className="w-12 h-12 rounded-full bg-signal text-white flex items-center justify-center transition-all hover:brightness-110 active:scale-[0.95]"
             title="Leave room"
           >
-            📞
+            <svg className="w-5 h-5 rotate-[135deg]" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
           </button>
         </div>
       </div>
