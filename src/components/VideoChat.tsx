@@ -21,6 +21,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [isAudioMuted, setIsAudioMuted] = useState(MUTE_AUDIO_BY_DEFAULT)
   const [isVideoMuted, setIsVideoMuted] = useState(false)
   const [peerCount, setPeerCount] = useState(0)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   
   const socketRef = useRef<Socket | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -271,6 +272,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     }
   }
 
+  const confirmLeave = () => {
+    setShowLeaveConfirm(true)
+  }
+
   const handleLeave = () => {
     cleanup()
     if (socketRef.current) {
@@ -279,8 +284,17 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
+  // Grid classes based on peer count for maximum space usage
+  const gridClasses = peerCount === 0
+    ? 'flex items-center justify-center'
+    : peerCount === 1
+      ? 'grid grid-cols-2 gap-4'
+      : peerCount <= 3
+        ? 'grid grid-cols-2 gap-4'
+        : 'grid grid-cols-2 lg:grid-cols-3 gap-4'
+
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden relative">
       {/* Top bar */}
       <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-4 sm:px-6 py-3">
         <div className="mx-auto max-w-7xl flex items-center justify-between gap-3">
@@ -302,7 +316,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             )}
           </div>
           <button
-            onClick={handleLeave}
+            onClick={confirmLeave}
             className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
           >
             Leave
@@ -310,35 +324,47 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Video grid — fills available space */}
+      {/* Main video area — remote peers centered */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Local video */}
-            <div className="relative aspect-video">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover rounded-xl border-2 border-electric bg-graphite"
-              />
-              <div className="absolute top-3 left-3 px-3 py-1.5 bg-electric/90 backdrop-blur-sm border border-electric rounded-lg text-xs font-semibold text-white">
-                You
-              </div>
-              {isVideoMuted && (
-                <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 rounded-xl border-2 border-electric">
-                  <div className="text-center">
-                    <svg className="w-10 h-10 text-fog/60 mx-auto mb-2" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
-                    <div className="text-sm text-fog/60">Camera off</div>
-                  </div>
-                </div>
-              )}
+        <div className="mx-auto max-w-7xl h-full">
+          {peerCount === 0 ? (
+            /* No peers — show waiting state centered */
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
+              <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
-            
-            {/* Remote videos */}
-            <div ref={videoGridRef} className="contents" />
+          ) : (
+            /* Peers grid — centered and max space */
+            <div className="h-full flex items-center justify-center">
+              <div className={`w-full max-w-5xl ${gridClasses}`}>
+                <div ref={videoGridRef} className="contents" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Local video — picture-in-picture bottom right */}
+      <div className="absolute bottom-24 right-4 sm:right-6 w-40 sm:w-56 z-10 group">
+        <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover bg-graphite"
+          />
+          <div className="absolute top-2 left-2 px-2 py-0.5 bg-electric/90 backdrop-blur-sm rounded text-[10px] font-semibold text-white">
+            You
           </div>
+          {isVideoMuted && (
+            <div className="absolute inset-0 flex items-center justify-center bg-graphite/90">
+              <div className="text-center">
+                <svg className="w-6 h-6 text-fog/60 mx-auto mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
+                <div className="text-[10px] text-fog/60">Camera off</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -378,7 +404,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           </button>
           
           <button
-            onClick={handleLeave}
+            onClick={confirmLeave}
             className="w-12 h-12 rounded-full bg-signal text-white flex items-center justify-center transition-all hover:brightness-110 active:scale-[0.95]"
             title="Leave room"
           >
@@ -386,6 +412,33 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           </button>
         </div>
       </div>
+
+      {/* Leave confirmation modal */}
+      {showLeaveConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm">
+          <div className="bg-graphite border border-white/10 rounded-2xl p-8 max-w-sm mx-4 text-center shadow-2xl">
+            <div className="w-14 h-14 rounded-full bg-signal/10 border border-signal/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-signal" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
+            </div>
+            <h3 className="text-lg font-display font-semibold text-paper mb-2">Leave room?</h3>
+            <p className="text-sm text-fog mb-6">You'll be disconnected from all peers in this room.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 px-4 py-2.5 border border-white/15 bg-white/5 text-paper font-medium rounded-lg transition-all hover:bg-white/10 active:scale-[0.98] text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeave}
+                className="flex-1 px-4 py-2.5 bg-signal text-white font-medium rounded-lg transition-all hover:brightness-110 active:scale-[0.98] text-sm"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
