@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client'
 
 interface VideoChatProps {
   roomId: string
+  onLeave: () => void
 }
 
 interface PeerConnection extends RTCPeerConnection {
@@ -15,8 +16,12 @@ const USE_VIDEO = true
 const MUTE_AUDIO_BY_DEFAULT = false
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }]
 
-export default function VideoChat({ roomId }: VideoChatProps) {
+export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [isConnected, setIsConnected] = useState(false)
+  const [isAudioMuted, setIsAudioMuted] = useState(MUTE_AUDIO_BY_DEFAULT)
+  const [isVideoMuted, setIsVideoMuted] = useState(false)
+  const [peerCount, setPeerCount] = useState(0)
+  
   const socketRef = useRef<Socket | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const peersRef = useRef<Record<string, PeerConnection>>({})
@@ -100,6 +105,11 @@ export default function VideoChat({ roomId }: VideoChatProps) {
         localVideoRef.current.srcObject = stream
         localVideoRef.current.muted = true
       }
+
+      // Apply initial mute state
+      if (MUTE_AUDIO_BY_DEFAULT) {
+        stream.getAudioTracks().forEach(track => track.enabled = false)
+      }
     } catch (error) {
       console.error('Access denied for audio/video:', error)
       alert('You chose not to provide access to the camera/microphone, demo will not work.')
@@ -121,6 +131,7 @@ export default function VideoChat({ roomId }: VideoChatProps) {
     
     peerConnection.peerId = peerId
     peersRef.current[peerId] = peerConnection
+    setPeerCount(Object.keys(peersRef.current).length)
 
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
@@ -140,6 +151,11 @@ export default function VideoChat({ roomId }: VideoChatProps) {
       console.log('onTrack', event)
       if (event.track.kind === 'audio' && USE_VIDEO) return
 
+      // Create container for remote video with label
+      const container = document.createElement('div')
+      container.className = 'relative group'
+      container.dataset.peerId = peerId
+
       // Create video element for remote peer
       const videoElement = document.createElement('video')
       videoElement.setAttribute('autoplay', 'true')
@@ -147,13 +163,19 @@ export default function VideoChat({ roomId }: VideoChatProps) {
       if (MUTE_AUDIO_BY_DEFAULT) {
         videoElement.setAttribute('muted', 'true')
       }
-      videoElement.setAttribute('controls', '')
-      videoElement.className = 'w-80 h-60 border border-gray-700'
-      videoElement.dataset.peerId = peerId
+      videoElement.className = 'w-full aspect-video object-cover rounded-xl border border-white/10 bg-graphite'
       videoElement.srcObject = event.streams[0]
 
+      // Create label overlay
+      const label = document.createElement('div')
+      label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper'
+      label.textContent = `Peer ${peerId.slice(0, 8)}`
+
+      container.appendChild(videoElement)
+      container.appendChild(label)
+
       if (videoGridRef.current) {
-        videoGridRef.current.appendChild(videoElement)
+        videoGridRef.current.appendChild(container)
       }
     }
 
@@ -235,14 +257,17 @@ export default function VideoChat({ roomId }: VideoChatProps) {
     console.log('Signaling server said to remove peer:', config)
     const peerId = config.peer_id
 
-    // Remove video element
+    // Remove video container
     if (videoGridRef.current) {
-      const videoElement = videoGridRef.current.querySelector(
-        `video[data-peer-id="${peerId}"]`
-      ) as HTMLVideoElement
-      if (videoElement) {
-        videoElement.srcObject = null
-        videoElement.remove()
+      const container = videoGridRef.current.querySelector(
+        `div[data-peer-id="${peerId}"]`
+      )
+      if (container) {
+        const videoElement = container.querySelector('video') as HTMLVideoElement
+        if (videoElement) {
+          videoElement.srcObject = null
+        }
+        container.remove()
       }
     }
 
@@ -250,6 +275,7 @@ export default function VideoChat({ roomId }: VideoChatProps) {
     if (peersRef.current[peerId]) {
       peersRef.current[peerId].close()
       delete peersRef.current[peerId]
+      setPeerCount(Object.keys(peersRef.current).length)
     }
   }
 
@@ -265,6 +291,7 @@ export default function VideoChat({ roomId }: VideoChatProps) {
       peer.close()
     })
     peersRef.current = {}
+    setPeerCount(0)
 
     // Clear video elements
     if (videoGridRef.current) {
@@ -272,31 +299,131 @@ export default function VideoChat({ roomId }: VideoChatProps) {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      <h1 className="text-2xl text-center mb-8">
-        Room ID: <span className="text-purple-500">{roomId}</span>
-      </h1>
-      
-      {!isConnected && (
-        <div className="text-center text-gray-400">
-          <p>Connecting to room...</p>
-        </div>
-      )}
+  const toggleAudio = () => {
+    if (localStreamRef.current) {
+      const audioTracks = localStreamRef.current.getAudioTracks()
+      audioTracks.forEach(track => {
+        track.enabled = !track.enabled
+      })
+      setIsAudioMuted(!audioTracks[0]?.enabled)
+    }
+  }
 
-      <div className="flex flex-wrap gap-4 justify-center">
-        {/* Local video */}
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          controls
-          className="w-80 h-60 border border-purple-500"
-        />
-        
-        {/* Remote videos container */}
-        <div ref={videoGridRef} className="flex flex-wrap gap-4 justify-center" />
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      const videoTracks = localStreamRef.current.getVideoTracks()
+      videoTracks.forEach(track => {
+        track.enabled = !track.enabled
+      })
+      setIsVideoMuted(!videoTracks[0]?.enabled)
+    }
+  }
+
+  const handleLeave = () => {
+    cleanup()
+    if (socketRef.current) {
+      socketRef.current.disconnect()
+    }
+    onLeave()
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-64px)] bg-ink text-white flex flex-col">
+      {/* Top bar */}
+      <div className="border-b border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-display font-semibold text-paper">
+              Room: <span className="text-electric font-mono">{roomId}</span>
+            </h2>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full">
+              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="text-xs font-mono text-fog">
+                {isConnected ? 'Connected' : 'Connecting...'}
+              </span>
+            </div>
+            {peerCount > 0 && (
+              <div className="text-xs font-mono text-fog">
+                {peerCount} {peerCount === 1 ? 'peer' : 'peers'}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleLeave}
+            className="px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm"
+          >
+            Leave Room
+          </button>
+        </div>
+      </div>
+
+      {/* Video grid */}
+      <div className="flex-1 p-6 overflow-auto">
+        <div className="container mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+            {/* Local video */}
+            <div className="relative group">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full aspect-video object-cover rounded-xl border-2 border-electric bg-graphite shadow-glow-electric"
+              />
+              <div className="absolute top-3 left-3 px-3 py-1.5 bg-electric/90 backdrop-blur-sm border border-electric rounded-lg text-xs font-semibold text-white">
+                You
+              </div>
+              {isVideoMuted && (
+                <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 rounded-xl">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">📹</div>
+                    <div className="text-sm text-fog">Camera off</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Remote videos container */}
+            <div ref={videoGridRef} className="contents" />
+          </div>
+        </div>
+      </div>
+
+      {/* Controls bar */}
+      <div className="border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-6">
+        <div className="container mx-auto flex justify-center items-center gap-4">
+          <button
+            onClick={toggleAudio}
+            className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+              isAudioMuted
+                ? 'bg-signal border-signal text-white hover:brightness-110'
+                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
+            } active:scale-[0.95]`}
+            title={isAudioMuted ? 'Unmute microphone' : 'Mute microphone'}
+          >
+            {isAudioMuted ? '🔇' : '🎤'}
+          </button>
+          
+          <button
+            onClick={toggleVideo}
+            className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all ${
+              isVideoMuted
+                ? 'bg-signal border-signal text-white hover:brightness-110'
+                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
+            } active:scale-[0.95]`}
+            title={isVideoMuted ? 'Turn on camera' : 'Turn off camera'}
+          >
+            {isVideoMuted ? '📷' : '🎥'}
+          </button>
+          
+          <button
+            onClick={handleLeave}
+            className="w-14 h-14 rounded-full bg-signal text-white flex items-center justify-center text-2xl transition-all hover:brightness-110 active:scale-[0.95]"
+            title="Leave room"
+          >
+            📞
+          </button>
+        </div>
       </div>
     </div>
   )
