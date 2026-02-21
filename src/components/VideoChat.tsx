@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 interface VideoChatProps {
@@ -22,12 +22,97 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [isVideoMuted, setIsVideoMuted] = useState(false)
   const [peerCount, setPeerCount] = useState(0)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState('')
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
   
   const socketRef = useRef<Socket | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const peersRef = useRef<Record<string, PeerConnection>>({})
   const videoGridRef = useRef<HTMLDivElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
+
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const audio = devices.filter(d => d.kind === 'audioinput')
+      const video = devices.filter(d => d.kind === 'videoinput')
+      setAudioDevices(audio)
+      setVideoDevices(video)
+
+      // Set current device IDs from active stream
+      if (localStreamRef.current) {
+        const audioTrack = localStreamRef.current.getAudioTracks()[0]
+        const videoTrack = localStreamRef.current.getVideoTracks()[0]
+        if (audioTrack) {
+          const settings = audioTrack.getSettings()
+          if (settings.deviceId) setSelectedAudioDevice(settings.deviceId)
+        }
+        if (videoTrack) {
+          const settings = videoTrack.getSettings()
+          if (settings.deviceId) setSelectedVideoDevice(settings.deviceId)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to enumerate devices:', err)
+    }
+  }, [])
+
+  const replaceTrack = useCallback(async (kind: 'audio' | 'video', deviceId: string) => {
+    if (!localStreamRef.current) return
+
+    try {
+      const constraints: MediaStreamConstraints = kind === 'audio'
+        ? { audio: { deviceId: { exact: deviceId } } }
+        : { video: { deviceId: { exact: deviceId } } }
+
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints)
+      const newTrack = kind === 'audio' ? newStream.getAudioTracks()[0] : newStream.getVideoTracks()[0]
+
+      if (!newTrack) return
+
+      // Replace track in local stream
+      const oldTrack = kind === 'audio'
+        ? localStreamRef.current.getAudioTracks()[0]
+        : localStreamRef.current.getVideoTracks()[0]
+
+      if (oldTrack) {
+        localStreamRef.current.removeTrack(oldTrack)
+        oldTrack.stop()
+      }
+      localStreamRef.current.addTrack(newTrack)
+
+      // Preserve mute state
+      if (kind === 'audio') {
+        newTrack.enabled = !isAudioMuted
+      } else {
+        newTrack.enabled = !isVideoMuted
+        // Update local video preview
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current
+        }
+      }
+
+      // Replace track on all peer connections
+      for (const peer of Object.values(peersRef.current)) {
+        const senders = peer.getSenders()
+        const sender = senders.find(s => s.track?.kind === kind)
+        if (sender) {
+          await sender.replaceTrack(newTrack)
+        }
+      }
+
+      if (kind === 'audio') {
+        setSelectedAudioDevice(deviceId)
+      } else {
+        setSelectedVideoDevice(deviceId)
+      }
+    } catch (err) {
+      console.error(`Failed to switch ${kind} device:`, err)
+    }
+  }, [isAudioMuted, isVideoMuted])
 
   useEffect(() => {
     const initConnection = async () => {
@@ -97,6 +182,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (MUTE_AUDIO_BY_DEFAULT) {
         stream.getAudioTracks().forEach(track => track.enabled = false)
       }
+
+      // Enumerate devices after getting permission
+      await enumerateDevices()
     } catch (error) {
       console.error('Access denied for audio/video:', error)
       alert('You chose not to provide access to the camera/microphone, demo will not work.')
@@ -326,13 +414,11 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       <div className="flex-1 min-h-0 p-4 overflow-auto">
         <div className="mx-auto max-w-7xl h-full">
           {peerCount === 0 ? (
-            /* No peers — show waiting state centered */
             <div className="h-full flex flex-col items-center justify-center text-center">
               <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
               <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
           ) : (
-            /* Peers grid — centered and max space */
             <div className="h-full flex items-center justify-center">
               <div className={`${peerCount === 1 ? 'w-full max-w-3xl' : 'w-full max-w-5xl'} ${gridClasses}`}>
                 <div ref={videoGridRef} className="contents" />
@@ -365,6 +451,61 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           )}
         </div>
       </div>
+
+      {/* Settings panel — slides up from controls bar */}
+      {showSettings && (
+        <div className="absolute bottom-[88px] left-1/2 -translate-x-1/2 z-20 w-80 sm:w-96 bg-graphite border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-display font-semibold text-paper">Device Settings</h3>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-fog hover:bg-white/10 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Microphone select */}
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium text-fog mb-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
+                Microphone
+              </label>
+              <select
+                value={selectedAudioDevice}
+                onChange={(e) => replaceTrack('audio', e.target.value)}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-paper outline-none focus:border-electric transition-all appearance-none cursor-pointer"
+              >
+                {audioDevices.map((device) => (
+                  <option key={device.deviceId} value={device.deviceId} className="bg-graphite text-paper">
+                    {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Camera select */}
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium text-fog mb-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                Camera
+              </label>
+              <select
+                value={selectedVideoDevice}
+                onChange={(e) => replaceTrack('video', e.target.value)}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-paper outline-none focus:border-electric transition-all appearance-none cursor-pointer"
+              >
+                {videoDevices.map((device) => (
+                  <option key={device.deviceId} value={device.deviceId} className="bg-graphite text-paper">
+                    {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Controls bar */}
       <div className="shrink-0 border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
@@ -399,6 +540,19 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             ) : (
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
             )}
+          </button>
+
+          {/* Settings button */}
+          <button
+            onClick={() => { setShowSettings(!showSettings); enumerateDevices() }}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+              showSettings
+                ? 'bg-electric text-white hover:brightness-110'
+                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
+            } active:scale-[0.95]`}
+            title="Device settings"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
           </button>
           
           <button
