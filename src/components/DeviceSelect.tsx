@@ -30,13 +30,14 @@ export default function DeviceSelect({ label, icon, devices, selectedDeviceId, o
   }, [isOpen])
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef}>
       <label className="flex items-center gap-2 text-xs font-medium text-fog mb-1.5">
         {icon}
         {label}
       </label>
 
       {/* Trigger button */}
+      <div className="relative">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -52,7 +53,7 @@ export default function DeviceSelect({ label, icon, devices, selectedDeviceId, o
 
       {/* Dropdown menu */}
       {isOpen && devices.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-graphite border border-white/10 rounded-lg shadow-2xl overflow-hidden z-50">
+        <div className="absolute bottom-full left-0 right-0 mb-1.5 bg-graphite border border-white/10 rounded-lg shadow-2xl overflow-hidden z-50">
           <div className="max-h-48 overflow-y-auto py-1 subtle-scroll">
             {devices.map((device, i) => {
               const deviceLabel = device.label || `${fallbackLabel} ${i + 1}`
@@ -85,6 +86,7 @@ export default function DeviceSelect({ label, icon, devices, selectedDeviceId, o
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
