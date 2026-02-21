@@ -245,11 +245,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       let peerMuted = false
       muteBtn.addEventListener('click', () => {
         peerMuted = !peerMuted
-        // Mute by disabling audio tracks on the remote stream
-        const stream = videoElement.srcObject as MediaStream | null
-        if (stream) {
-          stream.getAudioTracks().forEach(track => { track.enabled = !peerMuted })
-        }
+        videoElement.muted = peerMuted
+        videoElement.volume = peerMuted ? 0 : 1
         if (peerMuted) {
           muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-signal backdrop-blur-sm border border-signal flex items-center justify-center text-white hover:brightness-110 transition-all'
           muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
