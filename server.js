@@ -1,28 +1,25 @@
-// Config
+import { createServer as createHttpServer } from 'http'
+import { createServer as createHttpsServer } from 'https'
+import { readFileSync } from 'fs'
+import routes from './routes.js'
+import initSignaling from './signaling-server.js'
+
 const PORT = process.env.PORT || 3000
 const useHTTPS = false
 
-// Setup
-const routes = require('./routes')
-
-let server = null
+let server
 if (useHTTPS) {
-    const fs = require('fs')
-    const https = require('https')
     const options = {
-        key: fs.readFileSync('certs/key.pem', 'utf-8'),
-        cert: fs.readFileSync('certs/cert.pem', 'utf-8'),
+        key: readFileSync('certs/key.pem', 'utf-8'),
+        cert: readFileSync('certs/cert.pem', 'utf-8'),
     }
-    server = https.createServer(options, routes)
+    server = createHttpsServer(options, routes)
 } else {
-    const http = require('http')
-    server = http.createServer(routes)
+    server = createHttpServer(routes)
 }
 
-server.listen(PORT, null, () => {
-    console.log(
-        `${useHTTPS ? 'HTTPS' : 'HTTP'} Server listening on port ${PORT}`
-    )
+server.listen(PORT, () => {
+    console.log(`${useHTTPS ? 'HTTPS' : 'HTTP'} Server listening on port ${PORT}`)
 })
 
-const signaling_server = require('./signaling-server')(server)
+initSignaling(server)
