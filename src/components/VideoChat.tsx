@@ -342,8 +342,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Local video — picture-in-picture bottom right */}
-      <div className="absolute bottom-24 right-4 sm:right-6 w-40 sm:w-56 z-10 group">
+      {/* Local video — picture-in-picture bottom center */}
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group">
         <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
             ref={localVideoRef}
