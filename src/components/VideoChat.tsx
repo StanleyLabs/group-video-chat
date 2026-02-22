@@ -238,7 +238,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper'
       label.textContent = `Peer ${peerId.slice(0, 8)}`
 
-      // Mute peer button — uses Web Audio API for reliable muting
+      // Mute peer button - uses Web Audio API for reliable muting
       const muteBtn = document.createElement('button')
       muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all'
       muteBtn.title = 'Mute peer'
@@ -407,7 +407,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
-  // Always use grid — column count adapts but sizing stays consistent
+  // Always use grid - column count adapts but sizing stays consistent
   const gridClasses = peerCount <= 1
     ? 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
     : peerCount <= 4
@@ -445,7 +445,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Main video area — remote peers centered */}
+      {/* Main video area - remote peers centered */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
         <div className="mx-auto max-w-5xl h-full flex items-center justify-center">
           {peerCount === 0 ? (
@@ -461,7 +461,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Local video — picture-in-picture bottom center */}
+      {/* Local video - picture-in-picture bottom center */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group">
         <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
@@ -488,7 +488,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Settings panel — slides up from controls bar */}
+      {/* Settings panel - slides up from controls bar */}
       {showSettings && (
         <div className="absolute bottom-[88px] left-1/2 -translate-x-1/2 z-20 w-80 sm:w-96 bg-graphite border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl p-5">
           <div className="flex items-center justify-between mb-4">
