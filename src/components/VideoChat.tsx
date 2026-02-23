@@ -194,8 +194,12 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
   // Display name
   const [displayName, setDisplayName] = useState('')
+  const [savedName, setSavedName] = useState('')
   const handleNameSave = useCallback(() => {
-    sendName(displayName)
+    const trimmed = displayName.trim()
+    sendName(trimmed)
+    setSavedName(trimmed)
+    setDisplayName('')
   }, [sendName, displayName])
 
   // Leave confirmation (shared between top bar and controls bar)
@@ -232,7 +236,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         isConnected={isConnected}
         peerCount={peerCount}
         displayName={displayName}
+        savedName={savedName}
         onNameChange={setDisplayName}
+        onNameEdit={() => { setDisplayName(savedName); setSavedName('') }}
         onNameSave={handleNameSave}
         onLeave={() => setShowLeaveConfirm(true)}
       />
@@ -323,12 +329,14 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
 /* ---- Sub-components ---- */
 
-function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onNameSave, onLeave }: {
+function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onNameChange, onNameEdit, onNameSave, onLeave }: {
   roomId: string
   isConnected: boolean
   peerCount: number
   displayName: string
+  savedName: string
   onNameChange: (name: string) => void
+  onNameEdit: () => void
   onNameSave: () => void
   onLeave: () => void
 }) {
@@ -353,24 +361,37 @@ function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onN
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => onNameChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') onNameSave() }}
-              placeholder="Your name"
-              maxLength={24}
-              className="w-24 sm:w-32 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
-            />
+          {savedName ? (
             <button
-              onClick={onNameSave}
-              title="Set name"
-              className="shrink-0 px-3 py-1.5 bg-electric/10 border border-electric/30 text-electric text-sm font-medium rounded-lg transition-all hover:bg-electric/20 active:scale-[0.95]"
+              onClick={onNameEdit}
+              title="Change name"
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper transition-all hover:bg-white/10"
             >
-              Save
+              <span className="font-medium truncate max-w-[8rem]">{savedName}</span>
+              <svg className="w-3 h-3 text-fog/60 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" />
+              </svg>
             </button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => onNameChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onNameSave() }}
+                placeholder="Your name"
+                maxLength={24}
+                className="w-24 sm:w-32 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
+              />
+              <button
+                onClick={onNameSave}
+                title="Set name"
+                className="shrink-0 px-3 py-1.5 bg-electric/10 border border-electric/30 text-electric text-sm font-medium rounded-lg transition-all hover:bg-electric/20 active:scale-[0.95]"
+              >
+                Save
+              </button>
+            </div>
+          )}
           <button
             onClick={onLeave}
             className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
