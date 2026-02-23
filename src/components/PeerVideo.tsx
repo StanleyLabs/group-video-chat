@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState } from 'react'
 
 interface PeerVideoProps {
   peerId: string
@@ -9,51 +9,50 @@ interface PeerVideoProps {
 }
 
 /** Calculate where the video actually renders inside its container (object-contain). */
-function getVideoRect(video: HTMLVideoElement): { top: number; left: number; width: number; height: number } | null {
+function applyVideoRect(video: HTMLVideoElement, overlay: HTMLDivElement) {
   const { videoWidth, videoHeight } = video
-  if (!videoWidth || !videoHeight) return null
+  if (!videoWidth || !videoHeight) {
+    overlay.style.display = 'none'
+    return
+  }
 
   const containerW = video.clientWidth
   const containerH = video.clientHeight
-  if (!containerW || !containerH) return null
+  if (!containerW || !containerH) {
+    overlay.style.display = 'none'
+    return
+  }
 
   const videoAspect = videoWidth / videoHeight
   const containerAspect = containerW / containerH
 
   let renderW: number, renderH: number
   if (videoAspect > containerAspect) {
-    // Video is wider than container - letterbox top/bottom
     renderW = containerW
     renderH = containerW / videoAspect
   } else {
-    // Video is taller than container - pillarbox left/right
     renderH = containerH
     renderW = containerH * videoAspect
   }
 
-  return {
-    left: (containerW - renderW) / 2,
-    top: (containerH - renderH) / 2,
-    width: renderW,
-    height: renderH,
-  }
+  overlay.style.display = ''
+  overlay.style.top = `${(containerH - renderH) / 2}px`
+  overlay.style.left = `${(containerW - renderW) / 2}px`
+  overlay.style.width = `${renderW}px`
+  overlay.style.height = `${renderH}px`
 }
 
 export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSelect }: PeerVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const [isMuted, setIsMuted] = useState(false)
   const gainRef = useRef<GainNode | null>(null)
-  const [videoRect, setVideoRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
-
-  const recalcRect = useCallback(() => {
-    if (videoRef.current) {
-      setVideoRect(getVideoRect(videoRef.current))
-    }
-  }, [])
+  const rafRef = useRef<number>(0)
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !stream) return
+    const overlay = overlayRef.current
+    if (!video || !overlay || !stream) return
 
     video.srcObject = stream
 
@@ -67,28 +66,35 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
     video.muted = true
     video.volume = 0
 
-    // Recalculate overlay when video dimensions become known
-    const onMetadata = () => recalcRect()
-    const onResize = () => recalcRect()
-    video.addEventListener('loadedmetadata', onMetadata)
-    video.addEventListener('resize', onResize)
+    // Throttled recalc - writes directly to DOM, no React re-render
+    const recalc = () => {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        applyVideoRect(video, overlay)
+      })
+    }
 
-    // Also observe container size changes
-    const ro = new ResizeObserver(() => recalcRect())
+    video.addEventListener('loadedmetadata', recalc)
+    video.addEventListener('resize', recalc)
+
+    const ro = new ResizeObserver(recalc)
     ro.observe(video)
 
+    // Initial calc in case metadata is already loaded
+    recalc()
+
     return () => {
+      cancelAnimationFrame(rafRef.current)
       gainRef.current = null
       source.disconnect()
       gain.disconnect()
       audioCtx.close()
       video.srcObject = null
-      video.removeEventListener('loadedmetadata', onMetadata)
-      video.removeEventListener('resize', onResize)
+      video.removeEventListener('loadedmetadata', recalc)
+      video.removeEventListener('resize', recalc)
       ro.disconnect()
-      setVideoRect(null)
     }
-  }, [stream, recalcRect])
+  }, [stream])
 
   useEffect(() => {
     if (gainRef.current) {
@@ -105,7 +111,7 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
     <div
       onClick={onSelect}
       className={`
-        relative overflow-hidden cursor-pointer
+        relative overflow-hidden rounded-xl cursor-pointer
         ${isThumb ? 'max-w-[120px] md:max-w-[180px] h-full' : ''}
       `}
     >
@@ -117,19 +123,14 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
       />
 
       {/* Overlay positioned exactly over the visible video area */}
-      {videoRect && (
-        <div
-          className={`
-            absolute pointer-events-none rounded-xl overflow-hidden
-            ${isSpotlight ? 'border-2 border-electric' : 'border border-white/10'}
-          `}
-          style={{
-            top: videoRect.top,
-            left: videoRect.left,
-            width: videoRect.width,
-            height: videoRect.height,
-          }}
-        >
+      <div
+        ref={overlayRef}
+        className={`
+          absolute pointer-events-none rounded-xl overflow-hidden
+          ${isSpotlight ? 'border-2 border-electric' : 'border border-white/10'}
+        `}
+        style={{ display: 'none' }}
+      >
           {/* Label */}
           <div className={`
             absolute bg-graphite/80 backdrop-blur-sm
@@ -163,7 +164,6 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
             )}
           </button>
         </div>
-      )}
     </div>
   )
 }
