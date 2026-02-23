@@ -28,6 +28,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioDevice, setSelectedAudioDevice] = useState('')
   const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
+  const [expandedPeer, setExpandedPeer] = useState<string | null>(null)
+  const [deviceToast, setDeviceToast] = useState(false)
   
   const socketRef = useRef<Socket | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -35,7 +37,13 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const videoGridRef = useRef<HTMLDivElement>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
 
-  const enumerateDevices = useCallback(async () => {
+  // Draggable local video state
+  const pipRef = useRef<HTMLDivElement>(null)
+  const dragState = useRef<{ dragging: boolean; offsetX: number; offsetY: number }>({
+    dragging: false, offsetX: 0, offsetY: 0
+  })
+
+  const enumerateDevices = useCallback(async (showToast = false) => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       const audio = devices.filter(d => d.kind === 'audioinput')
@@ -56,10 +64,25 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           if (settings.deviceId) setSelectedVideoDevice(settings.deviceId)
         }
       }
+
+      if (showToast) {
+        setDeviceToast(true)
+        setTimeout(() => setDeviceToast(false), 2500)
+      }
     } catch (err) {
       console.error('Failed to enumerate devices:', err)
     }
   }, [])
+
+  // Listen for device changes (plug/unplug)
+  useEffect(() => {
+    const handler = () => {
+      console.log('Device change detected')
+      enumerateDevices(true)
+    }
+    navigator.mediaDevices.addEventListener('devicechange', handler)
+    return () => navigator.mediaDevices.removeEventListener('devicechange', handler)
+  }, [enumerateDevices])
 
   const replaceTrack = useCallback(async (kind: 'audio' | 'video', deviceId: string) => {
     if (!localStreamRef.current) return
@@ -74,7 +97,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       if (!newTrack) return
 
-      // Replace track in local stream
       const oldTrack = kind === 'audio'
         ? localStreamRef.current.getAudioTracks()[0]
         : localStreamRef.current.getVideoTracks()[0]
@@ -85,18 +107,15 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       }
       localStreamRef.current.addTrack(newTrack)
 
-      // Preserve mute state
       if (kind === 'audio') {
         newTrack.enabled = !isAudioMuted
       } else {
         newTrack.enabled = !isVideoMuted
-        // Update local video preview
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current
         }
       }
 
-      // Replace track on all peer connections
       for (const peer of Object.values(peersRef.current)) {
         const senders = peer.getSenders()
         const sender = senders.find(s => s.track?.kind === kind)
@@ -114,6 +133,103 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       console.error(`Failed to switch ${kind} device:`, err)
     }
   }, [isAudioMuted, isVideoMuted])
+
+  // Draggable pip setup
+  useEffect(() => {
+    const el = pipRef.current
+    if (!el) return
+
+    function clamp(x: number, y: number): [number, number] {
+      const w = el!.offsetWidth
+      const h = el!.offsetHeight
+      return [
+        Math.max(0, Math.min(x, window.innerWidth - w)),
+        Math.max(0, Math.min(y, window.innerHeight - h)),
+      ]
+    }
+
+    function onMouseDown(e: MouseEvent) {
+      e.preventDefault()
+      const rect = el!.getBoundingClientRect()
+      dragState.current = { dragging: true, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top }
+      el!.style.cursor = 'grabbing'
+      el!.style.opacity = '0.85'
+    }
+
+    function onMouseMove(e: MouseEvent) {
+      if (!dragState.current.dragging) return
+      e.preventDefault()
+      const [x, y] = clamp(e.clientX - dragState.current.offsetX, e.clientY - dragState.current.offsetY)
+      el!.style.left = x + 'px'
+      el!.style.top = y + 'px'
+      el!.style.right = 'auto'
+      el!.style.bottom = 'auto'
+      el!.style.transform = 'none'
+    }
+
+    function onMouseUp() {
+      if (dragState.current.dragging) {
+        dragState.current.dragging = false
+        el!.style.cursor = 'grab'
+        el!.style.opacity = '1'
+      }
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length !== 1) return
+      e.preventDefault()
+      const touch = e.touches[0]
+      const rect = el!.getBoundingClientRect()
+      dragState.current = { dragging: true, offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top }
+      el!.style.opacity = '0.85'
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!dragState.current.dragging) return
+      e.preventDefault()
+      const touch = e.touches[0]
+      const [x, y] = clamp(touch.clientX - dragState.current.offsetX, touch.clientY - dragState.current.offsetY)
+      el!.style.left = x + 'px'
+      el!.style.top = y + 'px'
+      el!.style.right = 'auto'
+      el!.style.bottom = 'auto'
+      el!.style.transform = 'none'
+    }
+
+    function onTouchEnd() {
+      if (dragState.current.dragging) {
+        dragState.current.dragging = false
+        el!.style.opacity = '1'
+      }
+    }
+
+    function onResize() {
+      // Re-clamp if positioned via left/top
+      if (el!.style.left && el!.style.left !== 'auto') {
+        const [x, y] = clamp(parseFloat(el!.style.left), parseFloat(el!.style.top))
+        el!.style.left = x + 'px'
+        el!.style.top = y + 'px'
+      }
+    }
+
+    el.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onTouchEnd)
+    window.addEventListener('resize', onResize)
+
+    return () => {
+      el.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      el.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [])
 
   useEffect(() => {
     const initConnection = async () => {
@@ -185,7 +301,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         stream.getAudioTracks().forEach(track => track.enabled = false)
       }
 
-      // Enumerate devices after getting permission
       await enumerateDevices()
     } catch (error) {
       console.error('Access denied for audio/video:', error)
@@ -222,7 +337,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (event.track.kind === 'audio' && USE_VIDEO) return
 
       const container = document.createElement('div')
-      container.className = 'relative aspect-video'
+      container.className = 'video-cell relative aspect-video'
       container.dataset.peerId = peerId
 
       const videoElement = document.createElement('video')
@@ -231,42 +346,58 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (MUTE_AUDIO_BY_DEFAULT) {
         videoElement.setAttribute('muted', 'true')
       }
-      videoElement.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite'
+      videoElement.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
       videoElement.srcObject = event.streams[0]
 
       const label = document.createElement('div')
-      label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper'
+      label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper pointer-events-none'
       label.textContent = `Peer ${peerId.slice(0, 8)}`
 
-      // Mute peer button - uses Web Audio API for reliable muting
+      // Mute peer button
       const muteBtn = document.createElement('button')
-      muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all'
+      muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all z-10'
       muteBtn.title = 'Mute peer'
       muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
 
-      // Set up Web Audio API gain node for this peer
+      // Web Audio API for reliable peer mute
       const audioCtx = new AudioContext()
       const source = audioCtx.createMediaStreamSource(event.streams[0])
       const gainNode = audioCtx.createGain()
       source.connect(gainNode)
       gainNode.connect(audioCtx.destination)
 
-      // Mute video element natively so audio only comes through gain node
       videoElement.muted = true
       videoElement.volume = 0
 
       let peerMuted = false
-      muteBtn.addEventListener('click', () => {
+      muteBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
         peerMuted = !peerMuted
         gainNode.gain.value = peerMuted ? 0 : 1
         if (peerMuted) {
-          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-signal backdrop-blur-sm border border-signal flex items-center justify-center text-white hover:brightness-110 transition-all'
+          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-signal backdrop-blur-sm border border-signal flex items-center justify-center text-white hover:brightness-110 transition-all z-10'
           muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
           muteBtn.title = 'Unmute peer'
         } else {
-          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all'
+          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all z-10'
           muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
           muteBtn.title = 'Mute peer'
+        }
+      })
+
+      // Click container to expand/collapse (not the mute button)
+      container.style.cursor = 'pointer'
+      container.addEventListener('click', () => {
+        const grid = videoGridRef.current
+        if (!grid) return
+        const wasExpanded = container.classList.contains('expanded')
+
+        // Collapse all
+        grid.querySelectorAll('.video-cell.expanded').forEach(c => c.classList.remove('expanded'))
+
+        if (!wasExpanded) {
+          container.classList.add('expanded')
+          container.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       })
 
@@ -407,15 +538,20 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
-  // Always use grid - column count adapts but sizing stays consistent
-  const gridClasses = peerCount <= 1
+  // Grid: 1 column for 3 or fewer peers, 2 columns for more than 3
+  const gridClasses = peerCount <= 3
     ? 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
-    : peerCount <= 4
-      ? 'grid grid-cols-1 sm:grid-cols-2 gap-4'
-      : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'
+    : 'grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4'
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
+      {/* Device change toast */}
+      {deviceToast && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[200] bg-yellow-400 text-gray-900 text-sm font-medium px-4 py-1.5 rounded-full shadow-lg animate-pulse">
+          Devices updated - check settings
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-3">
@@ -445,7 +581,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Main video area - remote peers centered */}
+      {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
         <div className="mx-auto max-w-5xl h-full flex items-center justify-center">
           {peerCount === 0 ? (
@@ -461,8 +597,12 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Local video - picture-in-picture bottom center */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group">
+      {/* Local video - draggable pip */}
+      <div
+        ref={pipRef}
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group"
+        style={{ cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+      >
         <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
             ref={(el) => {
@@ -472,13 +612,13 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             autoPlay
             playsInline
             muted
-            className="w-full h-full object-cover bg-graphite"
+            className="w-full h-full object-cover bg-graphite pointer-events-none"
           />
-          <div className="absolute top-2 left-2 px-2 py-0.5 bg-electric/90 backdrop-blur-sm rounded text-[10px] font-semibold text-white">
+          <div className="absolute top-2 left-2 px-2 py-0.5 bg-electric/90 backdrop-blur-sm rounded text-[10px] font-semibold text-white pointer-events-none">
             You
           </div>
           {isVideoMuted && (
-            <div className="absolute inset-0 flex items-center justify-center bg-graphite/90">
+            <div className="absolute inset-0 flex items-center justify-center bg-graphite/90 pointer-events-none">
               <div className="text-center">
                 <svg className="w-6 h-6 text-fog/60 mx-auto mb-1" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /><path strokeLinecap="round" d="M3 21 21 3" /></svg>
                 <div className="text-[10px] text-fog/60">Camera off</div>
@@ -488,7 +628,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         </div>
       </div>
 
-      {/* Settings panel - slides up from controls bar */}
+      {/* Settings panel */}
       {showSettings && (
         <div className="absolute bottom-[88px] left-1/2 -translate-x-1/2 z-20 w-80 sm:w-96 bg-graphite border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl p-5">
           <div className="flex items-center justify-between mb-4">
@@ -558,7 +698,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             )}
           </button>
 
-          {/* Settings button */}
           <button
             onClick={() => { setShowSettings(!showSettings); enumerateDevices() }}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
