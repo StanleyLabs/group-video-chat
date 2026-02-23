@@ -1,8 +1,7 @@
 /**
  * Returns Tailwind grid classes based on peer count.
- * - 1-3: single column on mobile, N columns on desktop
- * - >3: 2 columns default, 3 columns if divisible by 3
- * - place-content-center keeps the grid centered in the container
+ * Uses auto row sizing so rows shrink to content and place-content-center
+ * clusters them together instead of stretching to fill the container.
  */
 export function getGridClasses(count: number): string {
   const base = 'grid gap-2 place-content-center'

@@ -161,7 +161,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               )}
             </div>
           ) : (
-            <div className={`w-full h-full min-w-0 min-h-0 ${getGridClasses(peerCount)} `}>
+            <div className={`w-full max-h-full min-w-0 ${getGridClasses(peerCount)} `}>
               {peerList.map(p => (
                 <PeerVideo
                   key={p.id}
