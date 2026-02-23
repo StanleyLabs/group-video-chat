@@ -538,10 +538,13 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
-  // Grid: 1 column for 3 or fewer peers, 2 columns for more than 3
-  const gridClasses = peerCount <= 3
-    ? 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
-    : 'grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4'
+  // Grid: 1 col for <=3, 2 col default for >3, 3 col only if divisible by 3
+  function getGridClasses(count: number): string {
+    if (count <= 3) return 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
+    if (count % 3 === 0) return 'grid grid-cols-2 sm:grid-cols-3 gap-4'
+    return 'grid grid-cols-2 gap-4'
+  }
+  const gridClasses = getGridClasses(peerCount)
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">

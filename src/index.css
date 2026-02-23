@@ -48,10 +48,13 @@ video {
 /* Expanded peer video cell */
 .video-cell.expanded {
   grid-column: 1 / -1;
+  aspect-ratio: auto !important;
 }
 .video-cell.expanded video {
+  position: relative !important;
   max-height: 70vh;
   object-fit: contain;
+  aspect-ratio: auto;
 }
 
 /* Grain texture overlay */
