@@ -233,7 +233,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         onNameChange={setDisplayName}
         onNameEdit={() => { setDisplayName(savedName); setSavedName('') }}
         onNameSave={handleNameSave}
-        onLeave={() => setShowLeaveConfirm(true)}
       />
 
       {/* Main video area */}
@@ -322,7 +321,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
 /* ---- Sub-components ---- */
 
-function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onNameChange, onNameEdit, onNameSave, onLeave }: {
+function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onNameChange, onNameEdit, onNameSave }: {
   roomId: string
   isConnected: boolean
   peerCount: number
@@ -331,7 +330,6 @@ function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onName
   onNameChange: (name: string) => void
   onNameEdit: () => void
   onNameSave: () => void
-  onLeave: () => void
 }) {
   return (
     <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm landscape-hide">
@@ -385,12 +383,6 @@ function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onName
               </button>
             </div>
           )}
-          <button
-            onClick={onLeave}
-            className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
-          >
-            Leave
-          </button>
         </div>
       </div>
     </div>
