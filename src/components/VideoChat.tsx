@@ -6,10 +6,8 @@ import { useDevices } from '../hooks/useDevices'
 import { useDraggable } from '../hooks/useDraggable'
 import { getGridClasses } from '../utils/gridLayout'
 import PeerVideo from './PeerVideo'
-import DeviceSelect from './DeviceSelect'
 import LocalVideo from './LocalVideo'
 import ControlsBar from './ControlsBar'
-import LeaveModal from './LeaveModal'
 
 interface VideoChatProps {
   roomId: string
@@ -118,8 +116,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       />
 
       {/* Main video area */}
-      <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col">
-        <div className="w-full h-full flex flex-col justify-center">
+      <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col border border-blue-500">
+        <div className="w-full h-full flex flex-col justify-center border border-red-500">
           {peerCount === 0 ? (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">
@@ -155,7 +153,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               )}
             </div>
           ) : (
-            <div className={`w-full h-full ${getGridClasses(peerCount)}`}>
+            <div className={`w-full h-full min-w-0 min-h-0 ${getGridClasses(peerCount)}`}>
               {peerList.map(p => (
                 <PeerVideo
                   key={p.id}

@@ -46,25 +46,25 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
     setIsMuted(prev => !prev)
   }
 
-  const cellClasses = [
-    'flex items-center justify-center min-h-0 overflow-hidden cursor-pointer',
-    isSpotlight ? 'flex-1' : '',
-    isThumb ? 'flex-none w-[120px] md:w-[180px] h-full' : '',
-  ].join(' ')
+  // const cellClasses = [
+  //   'flex items-center justify-center min-h-0 overflow-hidden cursor-pointer',
+  //   isSpotlight ? 'flex-1' : '',
+  //   isThumb ? 'flex-none w-[120px] md:w-[180px] h-full' : '',
+  // ].join(' ')
 
-  const innerClasses = [
-    'relative flex h-full max-w-full rounded-xl overflow-hidden border bg-[#1a1d24]',
-    isSpotlight ? 'border-2 border-electric' : 'border-white/10',
-  ].join(' ')
+  // const innerClasses = [
+  //   'relative flex h-full max-w-full rounded-xl overflow-hidden border bg-[#1a1d24]',
+  //   isSpotlight ? 'border-2 border-electric' : 'border-white/10',
+  // ].join(' ')
 
   return (
-    <div className={cellClasses} onClick={onSelect}>
-      <div className={innerClasses}>
+    <div className={`min-w-0 w-full overflow-hidden cursor-pointer border border-green-500 ${isSpotlight ? '' : ''} ${isThumb ? 'flex-none w-[120px] md:w-[180px] h-full' : ''}`} onClick={onSelect}>
+      <div className={`relative rounded-xl border bg-[#1a1d24] ${isSpotlight ? 'border-2 border-electric' : 'border-white/10'}`}>
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          className="block h-full w-auto max-w-full rounded-xl pointer-events-none"
+          className="block rounded-xl pointer-events-none object-contain"
         />
 
         <div className={`absolute pointer-events-none bg-graphite/80 backdrop-blur-sm border border-white/10 font-medium text-paper ${

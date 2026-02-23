@@ -1,4 +1,4 @@
-import { forwardRef, RefObject } from 'react'
+import { forwardRef, type RefObject } from 'react'
 
 interface LocalVideoProps {
   videoRef: RefObject<HTMLVideoElement | null>
