@@ -337,8 +337,12 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (event.track.kind === 'audio' && USE_VIDEO) return
 
       const container = document.createElement('div')
-      container.className = 'video-cell relative aspect-video'
+      container.className = 'video-cell'
       container.dataset.peerId = peerId
+
+      // Inner wrapper hugs the video, border goes here
+      const inner = document.createElement('div')
+      inner.className = 'video-inner'
 
       const videoElement = document.createElement('video')
       videoElement.setAttribute('autoplay', 'true')
@@ -346,16 +350,16 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       if (MUTE_AUDIO_BY_DEFAULT) {
         videoElement.setAttribute('muted', 'true')
       }
-      videoElement.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
+      videoElement.className = 'pointer-events-none'
       videoElement.srcObject = event.streams[0]
 
       const label = document.createElement('div')
-      label.className = 'peer-label absolute top-2 left-2 px-2 py-1 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-md text-xs font-medium text-paper pointer-events-none'
+      label.className = 'peer-label'
       label.textContent = `Peer ${peerId.slice(0, 8)}`
 
       // Mute peer button
       const muteBtn = document.createElement('button')
-      muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all z-10'
+      muteBtn.className = 'mute-btn'
       muteBtn.title = 'Mute peer'
       muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
 
@@ -375,11 +379,11 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         peerMuted = !peerMuted
         gainNode.gain.value = peerMuted ? 0 : 1
         if (peerMuted) {
-          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-signal backdrop-blur-sm border border-signal flex items-center justify-center text-white hover:brightness-110 transition-all z-10'
+          muteBtn.className = 'mute-btn muted'
           muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
           muteBtn.title = 'Unmute peer'
         } else {
-          muteBtn.className = 'absolute top-3 right-3 w-8 h-8 rounded-full bg-graphite/80 backdrop-blur-sm border border-white/10 flex items-center justify-center text-paper hover:bg-white/10 transition-all z-10'
+          muteBtn.className = 'mute-btn'
           muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
           muteBtn.title = 'Mute peer'
         }
@@ -391,9 +395,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         setSpotlightPeerId(prev => prev === peerId ? null : peerId)
       })
 
-      container.appendChild(videoElement)
-      container.appendChild(label)
-      container.appendChild(muteBtn)
+      inner.appendChild(videoElement)
+      inner.appendChild(label)
+      inner.appendChild(muteBtn)
+      container.appendChild(inner)
 
       if (videoGridRef.current) {
         videoGridRef.current.appendChild(container)
@@ -546,51 +551,26 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     const cells = Array.from(grid.querySelectorAll(':scope > .video-cell')) as HTMLElement[]
 
     if (spotlightPeerId) {
-      // Spotlight mode
       const mainCell = cells.find(c => c.dataset.peerId === spotlightPeerId)
       const thumbCells = cells.filter(c => c.dataset.peerId !== spotlightPeerId)
 
-      // Style the main cell
       if (mainCell) {
-        const vid = mainCell.querySelector('video') as HTMLVideoElement
-        mainCell.className = 'video-cell relative'
-        mainCell.style.cursor = 'pointer'
-        if (vid) {
-          vid.className = 'w-full rounded-xl border-2 border-electric bg-graphite pointer-events-none'
-          vid.style.objectFit = 'contain'
-        }
-        // Ensure main is first child
+        mainCell.className = 'video-cell spotlight-main'
         grid.insertBefore(mainCell, grid.firstChild)
       }
 
-      // Create thumbs row and move other cells into it
       if (thumbCells.length > 0) {
         const thumbsRow = document.createElement('div')
         thumbsRow.className = 'spotlight-thumbs'
         thumbCells.forEach(cell => {
-          const vid = cell.querySelector('video') as HTMLVideoElement
-          cell.className = 'video-cell relative aspect-video'
-          cell.style.cursor = 'pointer'
-          if (vid) {
-            vid.className = 'absolute inset-0 w-full h-full object-cover rounded-lg border border-white/10 bg-graphite pointer-events-none'
-            vid.style.maxHeight = ''
-            vid.style.objectFit = ''
-          }
+          cell.className = 'video-cell'
           thumbsRow.appendChild(cell)
         })
         grid.appendChild(thumbsRow)
       }
     } else {
-      // Grid mode: restore all to normal
       cells.forEach(cell => {
-        const vid = cell.querySelector('video') as HTMLVideoElement
-        cell.className = 'video-cell relative aspect-video'
-        cell.style.cursor = 'pointer'
-        if (vid) {
-          vid.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
-          vid.style.maxHeight = ''
-          vid.style.objectFit = ''
-        }
+        cell.className = 'video-cell'
       })
     }
   }, [spotlightPeerId, peerCount])
