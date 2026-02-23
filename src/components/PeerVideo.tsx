@@ -13,6 +13,7 @@ function applyVideoRect(video: HTMLVideoElement, overlay: HTMLDivElement) {
   const { videoWidth, videoHeight } = video
   if (!videoWidth || !videoHeight) {
     overlay.style.display = 'none'
+    video.style.clipPath = ''
     return
   }
 
@@ -20,6 +21,7 @@ function applyVideoRect(video: HTMLVideoElement, overlay: HTMLDivElement) {
   const containerH = video.clientHeight
   if (!containerW || !containerH) {
     overlay.style.display = 'none'
+    video.style.clipPath = ''
     return
   }
 
@@ -35,11 +37,18 @@ function applyVideoRect(video: HTMLVideoElement, overlay: HTMLDivElement) {
     renderW = containerH * videoAspect
   }
 
+  const top = (containerH - renderH) / 2
+  const left = (containerW - renderW) / 2
+
   overlay.style.display = ''
-  overlay.style.top = `${(containerH - renderH) / 2}px`
-  overlay.style.left = `${(containerW - renderW) / 2}px`
+  overlay.style.top = `${top}px`
+  overlay.style.left = `${left}px`
   overlay.style.width = `${renderW}px`
   overlay.style.height = `${renderH}px`
+
+  // Clip the video element to rounded corners matching the overlay
+  const r = 12 // matches rounded-xl (0.75rem = 12px)
+  video.style.clipPath = `inset(${top}px ${left}px ${top}px ${left}px round ${r}px)`
 }
 
 export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSelect }: PeerVideoProps) {
