@@ -162,6 +162,30 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   // Fit grid width to actual video content
   useGridFit(gridRef, spotlightPeerId ? 0 : peerCount)
 
+  // Brief visibility hide on layout mode switch to prevent flicker
+  const layoutRef = useRef<HTMLDivElement>(null)
+  const prevModeRef = useRef<string | null>(null)
+  const currentMode = spotlightPeerId ? 'spotlight' : 'grid'
+
+  useEffect(() => {
+    const el = layoutRef.current
+    if (!el) return
+    if (prevModeRef.current !== null && prevModeRef.current !== currentMode) {
+      el.style.visibility = 'hidden'
+      const raf = requestAnimationFrame(() => {
+        // Reveal after one frame so the new layout has settled
+        requestAnimationFrame(() => {
+          el.style.visibility = ''
+        })
+      })
+      return () => {
+        cancelAnimationFrame(raf)
+        el.style.visibility = ''
+      }
+    }
+    prevModeRef.current = currentMode
+  }, [currentMode])
+
   const handleLeave = () => {
     send({ type: 'LEAVE' })
     onLeave()
@@ -197,7 +221,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col">
-        <div className="w-full h-[70vh] flex flex-col justify-center">
+        <div ref={layoutRef} className="w-full h-[70vh] flex flex-col justify-center">
           {peerCount === 0 ? (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">
