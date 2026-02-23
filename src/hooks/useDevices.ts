@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface UseDevicesOptions {
   localStream: MediaStream | null
@@ -10,10 +10,7 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioDevice, setSelectedAudioDevice] = useState('')
   const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
-  const [showToast, setShowToast] = useState(false)
-  const toastTimer = useRef<number | null>(null)
-
-  const enumerate = useCallback(async (toast = false) => {
+  const enumerate = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       setAudioDevices(devices.filter(d => d.kind === 'audioinput'))
@@ -26,11 +23,6 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
         if (vt?.getSettings().deviceId) setSelectedVideoDevice(vt.getSettings().deviceId!)
       }
 
-      if (toast) {
-        setShowToast(true)
-        if (toastTimer.current) clearTimeout(toastTimer.current)
-        toastTimer.current = window.setTimeout(() => setShowToast(false), 2500)
-      }
     } catch (err) {
       console.error('Failed to enumerate devices:', err)
     }
@@ -54,11 +46,10 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
 
   // Listen for device changes
   useEffect(() => {
-    const handler = () => enumerate(true)
+    const handler = () => enumerate()
     navigator.mediaDevices.addEventListener('devicechange', handler)
     return () => {
       navigator.mediaDevices.removeEventListener('devicechange', handler)
-      if (toastTimer.current) clearTimeout(toastTimer.current)
     }
   }, [enumerate])
 
@@ -113,7 +104,6 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
     videoDevices,
     selectedAudioDevice,
     selectedVideoDevice,
-    showToast,
     enumerate,
     switchDevice,
   }

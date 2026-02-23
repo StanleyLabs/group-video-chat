@@ -223,13 +223,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
-      {/* Device change toast */}
-      {devices.showToast && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[200] bg-yellow-400 text-gray-900 text-sm font-medium px-4 py-1.5 rounded-full shadow-lg animate-pulse">
-          Devices updated - check settings
-        </div>
-      )}
-
       {/* Top bar */}
       <TopBar
         roomId={roomId}
@@ -381,7 +374,7 @@ function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onName
                 onKeyDown={(e) => { if (e.key === 'Enter') onNameSave() }}
                 placeholder="Your name"
                 maxLength={24}
-                className="w-24 sm:w-32 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
+                className="w-24 sm:w-32 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-base text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
               />
               <button
                 onClick={onNameSave}

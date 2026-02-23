@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, type RefObject } from 'react'
+import { forwardRef, useEffect, useRef, useState, type RefObject } from 'react'
 
 interface LocalVideoProps {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -8,6 +8,7 @@ interface LocalVideoProps {
 const LocalVideo = forwardRef<HTMLDivElement, LocalVideoProps>(
   ({ videoRef, isVideoMuted }, pipRef) => {
     const internalVideoRef = useRef<HTMLVideoElement | null>(null)
+    const [isPortrait, setIsPortrait] = useState(false)
 
     // Sync internal ref to parent's ref
     useEffect(() => {
@@ -23,19 +24,41 @@ const LocalVideo = forwardRef<HTMLDivElement, LocalVideoProps>(
       }
     }, [videoRef])
 
+    // Detect portrait vs landscape from actual video dimensions
+    useEffect(() => {
+      const video = internalVideoRef.current
+      if (!video) return
+
+      const checkOrientation = () => {
+        const { videoWidth, videoHeight } = video
+        if (videoWidth && videoHeight) {
+          setIsPortrait(videoHeight > videoWidth)
+        }
+      }
+
+      video.addEventListener('loadedmetadata', checkOrientation)
+      video.addEventListener('resize', checkOrientation)
+      checkOrientation()
+
+      return () => {
+        video.removeEventListener('loadedmetadata', checkOrientation)
+        video.removeEventListener('resize', checkOrientation)
+      }
+    }, [])
+
     return (
       <div
         ref={pipRef}
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 w-40 sm:w-56 z-10 group"
+        className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-10 group ${isPortrait ? 'w-24 sm:w-32' : 'w-40 sm:w-56'}`}
         style={{ cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
       >
-        <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
+        <div className="relative rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
             ref={internalVideoRef}
             autoPlay
             playsInline
             muted
-            className="w-full h-full object-cover bg-graphite pointer-events-none"
+            className="w-full h-full bg-graphite pointer-events-none"
           />
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-electric/90 backdrop-blur-sm rounded text-[10px] font-semibold text-white pointer-events-none">
             You

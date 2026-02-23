@@ -51,7 +51,7 @@ export default function JoinForm({ onJoin }: JoinFormProps) {
               type="text"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg outline-none text-paper placeholder:text-fog/40 focus:border-electric focus:ring-2 focus:ring-electric/20 transition-all"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg outline-none text-base text-paper placeholder:text-fog/40 focus:border-electric focus:ring-2 focus:ring-electric/20 transition-all"
               autoComplete="off"
               placeholder="my-room-123"
               required
