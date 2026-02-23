@@ -16,11 +16,15 @@ import ControlsBar from './ControlsBar'
  */
 function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number) {
   const rafRef = useRef(0)
+  const fittedRef = useRef(false)
 
   useEffect(() => {
     const grid = gridRef.current
     const parent = grid?.parentElement
     if (!grid || !parent || peerCount === 0) return
+
+    fittedRef.current = false
+    grid.style.visibility = 'hidden'
 
     const recalc = () => {
       cancelAnimationFrame(rafRef.current)
@@ -28,7 +32,6 @@ function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number
         const video = grid.querySelector('video')
         if (!video || !video.videoWidth || !video.videoHeight) return
 
-        // Use parent dimensions (stable, we don't mutate the parent)
         const availH = parent.clientHeight
         const availW = parent.clientWidth
         if (!availH || !availW) return
@@ -48,13 +51,17 @@ function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number
         } else {
           grid.style.maxWidth = ''
         }
+
+        // Reveal on first successful fit
+        if (!fittedRef.current) {
+          fittedRef.current = true
+          grid.style.visibility = ''
+        }
       })
     }
 
-    // Listen for video metadata on any video in the grid
     grid.addEventListener('loadedmetadata', recalc, true)
 
-    // Observe the parent - not the grid - to avoid resize feedback loops
     const ro = new ResizeObserver(recalc)
     ro.observe(parent)
 
@@ -65,6 +72,7 @@ function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number
       grid.removeEventListener('loadedmetadata', recalc, true)
       ro.disconnect()
       grid.style.maxWidth = ''
+      grid.style.visibility = ''
     }
   }, [gridRef, peerCount])
 }
