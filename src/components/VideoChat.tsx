@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, type RefObject } from 'react'
 import { useMachine } from '@xstate/react'
 import { roomMachine } from '../machines/roomMachine'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -8,6 +8,67 @@ import { getGridClasses } from '../utils/gridLayout'
 import PeerVideo from './PeerVideo'
 import LocalVideo from './LocalVideo'
 import ControlsBar from './ControlsBar'
+
+/**
+ * Resizes a grid container so its columns tightly fit the actual video
+ * content (accounting for object-contain letterboxing).
+ * Reads the first <video>'s native aspect ratio + the grid's available height
+ * to compute the ideal width, then sets it directly via DOM style.
+ */
+function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number) {
+  const rafRef = useRef(0)
+
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid || peerCount === 0) return
+
+    const recalc = () => {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        const video = grid.querySelector('video')
+        if (!video || !video.videoWidth || !video.videoHeight) return
+
+        const gridH = grid.clientHeight
+        const gridW = grid.clientWidth
+        if (!gridH || !gridW) return
+
+        const style = getComputedStyle(grid)
+        const cols = style.gridTemplateColumns.split(' ').length
+        const rows = Math.ceil(peerCount / cols)
+        const gap = parseFloat(style.gap) || 0
+
+        const rowH = (gridH - gap * (rows - 1)) / rows
+        const videoAspect = video.videoWidth / video.videoHeight
+        const cellW = rowH * videoAspect
+        const idealW = cellW * cols + gap * (cols - 1)
+
+        // Only shrink, never expand beyond available width
+        if (idealW < gridW) {
+          grid.style.maxWidth = `${idealW}px`
+        } else {
+          grid.style.maxWidth = ''
+        }
+      })
+    }
+
+    // Listen for video metadata on any video in the grid
+    const onMetadata = () => recalc()
+    grid.addEventListener('loadedmetadata', onMetadata, true) // capture phase for child videos
+
+    const ro = new ResizeObserver(recalc)
+    ro.observe(grid)
+
+    // Initial calc
+    recalc()
+
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      grid.removeEventListener('loadedmetadata', onMetadata, true)
+      ro.disconnect()
+      grid.style.maxWidth = ''
+    }
+  }, [gridRef, peerCount])
+}
 
 interface VideoChatProps {
   roomId: string
@@ -20,6 +81,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const pipRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
 
   useDraggable(pipRef)
 
@@ -89,6 +151,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const isConnected = state.matches('connected')
   const spotlightPeer = peerList.find(p => p.id === spotlightPeerId)
   const thumbPeers = spotlightPeerId ? peerList.filter(p => p.id !== spotlightPeerId) : []
+
+  // Fit grid width to actual video content
+  useGridFit(gridRef, spotlightPeerId ? 0 : peerCount)
 
   const handleLeave = () => {
     send({ type: 'LEAVE' })
@@ -161,7 +226,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               )}
             </div>
           ) : (
-            <div className={`w-full max-h-full min-w-0 ${getGridClasses(peerCount)} `}>
+            <div ref={gridRef} className={`w-full h-full min-w-0 min-h-0 mx-auto ${getGridClasses(peerCount)} `}>
               {peerList.map(p => (
                 <PeerVideo
                   key={p.id}
