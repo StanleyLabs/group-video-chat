@@ -63,7 +63,7 @@ video {
   inset: unset !important;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover;
+  object-fit: contain !important;
 }
 
 /* Spotlight layout - main video on top, thumbnails row below */
@@ -82,7 +82,8 @@ video {
 
 .spotlight-layout .spotlight-main video {
   height: 100% !important;
-  max-height: unset !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
 }
 
 .spotlight-thumbs {
@@ -106,6 +107,10 @@ video {
   .spotlight-thumbs .video-cell {
     width: 180px;
   }
+}
+
+.spotlight-thumbs .video-cell video {
+  object-fit: contain !important;
 }
 
 /* Shrink labels inside thumbnails */
