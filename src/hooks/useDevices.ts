@@ -38,8 +38,19 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
 
   // Initial enumeration when stream is available
   useEffect(() => {
-    if (localStream) enumerate()
-  }, [localStream, enumerate])
+    if (!localStream) return
+    let cancelled = false
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      if (cancelled) return
+      setAudioDevices(devices.filter(d => d.kind === 'audioinput'))
+      setVideoDevices(devices.filter(d => d.kind === 'videoinput'))
+      const at = localStream.getAudioTracks()[0]
+      const vt = localStream.getVideoTracks()[0]
+      if (at?.getSettings().deviceId) setSelectedAudioDevice(at.getSettings().deviceId!)
+      if (vt?.getSettings().deviceId) setSelectedVideoDevice(vt.getSettings().deviceId!)
+    }).catch(err => console.error('Failed to enumerate devices:', err))
+    return () => { cancelled = true }
+  }, [localStream])
 
   // Listen for device changes
   useEffect(() => {

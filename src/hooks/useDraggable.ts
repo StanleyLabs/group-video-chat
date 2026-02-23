@@ -1,4 +1,4 @@
-import { useEffect, useRef, RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 export function useDraggable(ref: RefObject<HTMLDivElement | null>) {
   const state = useRef({ dragging: false, offsetX: 0, offsetY: 0 })

@@ -1,4 +1,4 @@
-import { forwardRef, type RefObject } from 'react'
+import { forwardRef, useEffect, useRef, type RefObject } from 'react'
 
 interface LocalVideoProps {
   videoRef: RefObject<HTMLVideoElement | null>
@@ -7,6 +7,22 @@ interface LocalVideoProps {
 
 const LocalVideo = forwardRef<HTMLDivElement, LocalVideoProps>(
   ({ videoRef, isVideoMuted }, pipRef) => {
+    const internalVideoRef = useRef<HTMLVideoElement | null>(null)
+
+    // Sync internal ref to parent's ref
+    useEffect(() => {
+      const el = internalVideoRef.current
+      if (el) {
+        el.muted = true
+        el.volume = 0
+      }
+      // Write to parent ref via Object.assign to satisfy readonly constraint
+      Object.assign(videoRef, { current: el })
+      return () => {
+        Object.assign(videoRef, { current: null })
+      }
+    }, [videoRef])
+
     return (
       <div
         ref={pipRef}
@@ -15,10 +31,7 @@ const LocalVideo = forwardRef<HTMLDivElement, LocalVideoProps>(
       >
         <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">
           <video
-            ref={(el) => {
-              (videoRef as any).current = el
-              if (el) { el.muted = true; el.volume = 0 }
-            }}
+            ref={internalVideoRef}
             autoPlay
             playsInline
             muted

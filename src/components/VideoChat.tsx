@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { useMachine } from '@xstate/react'
 import { roomMachine } from '../machines/roomMachine'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -24,12 +24,17 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   useDraggable(pipRef)
 
   // Request media on mount
-  const mediaRequested = useRef(false)
-  if (!mediaRequested.current && state.matches('requestingMedia')) {
-    mediaRequested.current = true
+  const isRequestingMedia = state.matches('requestingMedia')
+  useEffect(() => {
+    if (!isRequestingMedia) return
+    let cancelled = false
     navigator.mediaDevices
       .getUserMedia({ audio: true, video: true })
       .then(stream => {
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop())
+          return
+        }
         send({ type: 'MEDIA_READY', stream })
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream
@@ -37,8 +42,11 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
           localVideoRef.current.volume = 0
         }
       })
-      .catch(err => send({ type: 'MEDIA_ERROR', error: err.message }))
-  }
+      .catch(err => {
+        if (!cancelled) send({ type: 'MEDIA_ERROR', error: err.message })
+      })
+    return () => { cancelled = true }
+  }, [isRequestingMedia, send])
 
   // WebRTC signaling
   const onPeerAdded = useCallback((peerId: string, stream: MediaStream) => {
