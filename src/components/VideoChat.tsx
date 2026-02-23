@@ -125,7 +125,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col">
-        <div className="w-full h-full flex flex-col justify-center">
+        <div className="w-full h-[70vh] flex flex-col justify-center">
           {peerCount === 0 ? (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">
@@ -146,7 +146,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
                 onSelect={() => send({ type: 'SPOTLIGHT', peerId: null })}
               />
               {thumbPeers.length > 0 && (
-                <div className="flex flex-wrap gap-2 overflow-x-auto shrink-0">
+                <div className="flex flex-wrap justify-center gap-2 shrink-0">
                   {thumbPeers.map(p => (
                     <PeerVideo
                       key={p.id}
