@@ -194,10 +194,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
   // Display name
   const [displayName, setDisplayName] = useState('')
-  const handleNameChange = useCallback((name: string) => {
-    setDisplayName(name)
-    sendName(name)
-  }, [sendName])
+  const handleNameSave = useCallback(() => {
+    sendName(displayName)
+  }, [sendName, displayName])
 
   // Leave confirmation (shared between top bar and controls bar)
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
@@ -233,7 +232,8 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         isConnected={isConnected}
         peerCount={peerCount}
         displayName={displayName}
-        onNameChange={handleNameChange}
+        onNameChange={setDisplayName}
+        onNameSave={handleNameSave}
         onLeave={() => setShowLeaveConfirm(true)}
       />
 
@@ -323,12 +323,13 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
 /* ---- Sub-components ---- */
 
-function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onLeave }: {
+function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onNameSave, onLeave }: {
   roomId: string
   isConnected: boolean
   peerCount: number
   displayName: string
   onNameChange: (name: string) => void
+  onNameSave: () => void
   onLeave: () => void
 }) {
   return (
@@ -352,14 +353,24 @@ function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onL
           )}
         </div>
         <div className="flex items-center gap-3">
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Your name"
-            maxLength={24}
-            className="w-28 sm:w-36 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
-          />
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => onNameChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onNameSave() }}
+              placeholder="Your name"
+              maxLength={24}
+              className="w-24 sm:w-32 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
+            />
+            <button
+              onClick={onNameSave}
+              title="Set name"
+              className="shrink-0 px-2.5 py-1.5 bg-electric/10 border border-electric/30 text-electric text-xs font-medium rounded-lg transition-all hover:bg-electric/20 active:scale-[0.95]"
+            >
+              Save
+            </button>
+          </div>
           <button
             onClick={onLeave}
             className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
