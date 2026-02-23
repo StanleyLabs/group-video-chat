@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import DeviceSelect from './DeviceSelect'
+import PeerVideo from './PeerVideo'
 
 interface VideoChatProps {
   roomId: string
   onLeave: () => void
 }
 
-interface PeerConnection extends RTCPeerConnection {
-  peerId?: string
+interface PeerData {
+  id: string
+  stream: MediaStream
 }
 
 // Config
@@ -21,7 +23,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [isAudioMuted, setIsAudioMuted] = useState(MUTE_AUDIO_BY_DEFAULT)
   const [isVideoMuted, setIsVideoMuted] = useState(false)
-  const [peerCount, setPeerCount] = useState(0)
+  const [peerList, setPeerList] = useState<PeerData[]>([])
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
@@ -30,39 +32,31 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
   const [spotlightPeerId, setSpotlightPeerId] = useState<string | null>(null)
   const [deviceToast, setDeviceToast] = useState(false)
-  
+
   const socketRef = useRef<Socket | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
-  const peersRef = useRef<Record<string, PeerConnection>>({})
-  const videoGridRef = useRef<HTMLDivElement>(null)
+  const peersRef = useRef<Record<string, RTCPeerConnection>>({})
   const localVideoRef = useRef<HTMLVideoElement>(null)
 
-  // Draggable local video state
+  // Draggable pip
   const pipRef = useRef<HTMLDivElement>(null)
-  const dragState = useRef<{ dragging: boolean; offsetX: number; offsetY: number }>({
-    dragging: false, offsetX: 0, offsetY: 0
-  })
+  const dragState = useRef({ dragging: false, offsetX: 0, offsetY: 0 })
+
+  const peerCount = peerList.length
+
+  /* ---- Device Enumeration ---- */
 
   const enumerateDevices = useCallback(async (showToast = false) => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
-      const audio = devices.filter(d => d.kind === 'audioinput')
-      const video = devices.filter(d => d.kind === 'videoinput')
-      setAudioDevices(audio)
-      setVideoDevices(video)
+      setAudioDevices(devices.filter(d => d.kind === 'audioinput'))
+      setVideoDevices(devices.filter(d => d.kind === 'videoinput'))
 
-      // Set current device IDs from active stream
       if (localStreamRef.current) {
-        const audioTrack = localStreamRef.current.getAudioTracks()[0]
-        const videoTrack = localStreamRef.current.getVideoTracks()[0]
-        if (audioTrack) {
-          const settings = audioTrack.getSettings()
-          if (settings.deviceId) setSelectedAudioDevice(settings.deviceId)
-        }
-        if (videoTrack) {
-          const settings = videoTrack.getSettings()
-          if (settings.deviceId) setSelectedVideoDevice(settings.deviceId)
-        }
+        const at = localStreamRef.current.getAudioTracks()[0]
+        const vt = localStreamRef.current.getVideoTracks()[0]
+        if (at?.getSettings().deviceId) setSelectedAudioDevice(at.getSettings().deviceId!)
+        if (vt?.getSettings().deviceId) setSelectedVideoDevice(vt.getSettings().deviceId!)
       }
 
       if (showToast) {
@@ -74,19 +68,14 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     }
   }, [])
 
-  // Listen for device changes (plug/unplug)
   useEffect(() => {
-    const handler = () => {
-      console.log('Device change detected')
-      enumerateDevices(true)
-    }
+    const handler = () => enumerateDevices(true)
     navigator.mediaDevices.addEventListener('devicechange', handler)
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler)
   }, [enumerateDevices])
 
   const replaceTrack = useCallback(async (kind: 'audio' | 'video', deviceId: string) => {
     if (!localStreamRef.current) return
-
     try {
       const constraints: MediaStreamConstraints = kind === 'audio'
         ? { audio: { deviceId: { exact: deviceId } } }
@@ -94,7 +83,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       const newStream = await navigator.mediaDevices.getUserMedia(constraints)
       const newTrack = kind === 'audio' ? newStream.getAudioTracks()[0] : newStream.getVideoTracks()[0]
-
       if (!newTrack) return
 
       const oldTrack = kind === 'audio'
@@ -107,108 +95,88 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       }
       localStreamRef.current.addTrack(newTrack)
 
-      if (kind === 'audio') {
-        newTrack.enabled = !isAudioMuted
-      } else {
+      if (kind === 'audio') newTrack.enabled = !isAudioMuted
+      else {
         newTrack.enabled = !isVideoMuted
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current
-        }
+        if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
       }
 
-      for (const peer of Object.values(peersRef.current)) {
-        const senders = peer.getSenders()
-        const sender = senders.find(s => s.track?.kind === kind)
-        if (sender) {
-          await sender.replaceTrack(newTrack)
-        }
+      for (const pc of Object.values(peersRef.current)) {
+        const sender = pc.getSenders().find(s => s.track?.kind === kind)
+        if (sender) await sender.replaceTrack(newTrack)
       }
 
-      if (kind === 'audio') {
-        setSelectedAudioDevice(deviceId)
-      } else {
-        setSelectedVideoDevice(deviceId)
-      }
+      if (kind === 'audio') setSelectedAudioDevice(deviceId)
+      else setSelectedVideoDevice(deviceId)
     } catch (err) {
       console.error(`Failed to switch ${kind} device:`, err)
     }
   }, [isAudioMuted, isVideoMuted])
 
-  // Draggable pip setup
+  /* ---- Draggable Pip ---- */
+
   useEffect(() => {
     const el = pipRef.current
     if (!el) return
 
-    function clamp(x: number, y: number): [number, number] {
-      const w = el!.offsetWidth
-      const h = el!.offsetHeight
-      return [
-        Math.max(0, Math.min(x, window.innerWidth - w)),
-        Math.max(0, Math.min(y, window.innerHeight - h)),
-      ]
-    }
+    const clamp = (x: number, y: number): [number, number] => [
+      Math.max(0, Math.min(x, window.innerWidth - el.offsetWidth)),
+      Math.max(0, Math.min(y, window.innerHeight - el.offsetHeight)),
+    ]
 
-    function onMouseDown(e: MouseEvent) {
+    const onMouseDown = (e: MouseEvent) => {
       e.preventDefault()
-      const rect = el!.getBoundingClientRect()
+      const rect = el.getBoundingClientRect()
       dragState.current = { dragging: true, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top }
-      el!.style.cursor = 'grabbing'
-      el!.style.opacity = '0.85'
+      el.style.cursor = 'grabbing'
+      el.style.opacity = '0.85'
     }
-
-    function onMouseMove(e: MouseEvent) {
+    const onMouseMove = (e: MouseEvent) => {
       if (!dragState.current.dragging) return
       e.preventDefault()
       const [x, y] = clamp(e.clientX - dragState.current.offsetX, e.clientY - dragState.current.offsetY)
-      el!.style.left = x + 'px'
-      el!.style.top = y + 'px'
-      el!.style.right = 'auto'
-      el!.style.bottom = 'auto'
-      el!.style.transform = 'none'
+      el.style.left = x + 'px'
+      el.style.top = y + 'px'
+      el.style.right = 'auto'
+      el.style.bottom = 'auto'
+      el.style.transform = 'none'
     }
-
-    function onMouseUp() {
+    const onMouseUp = () => {
       if (dragState.current.dragging) {
         dragState.current.dragging = false
-        el!.style.cursor = 'grab'
-        el!.style.opacity = '1'
+        el.style.cursor = 'grab'
+        el.style.opacity = '1'
       }
     }
-
-    function onTouchStart(e: TouchEvent) {
+    const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return
       e.preventDefault()
-      const touch = e.touches[0]
-      const rect = el!.getBoundingClientRect()
-      dragState.current = { dragging: true, offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top }
-      el!.style.opacity = '0.85'
+      const t = e.touches[0], rect = el.getBoundingClientRect()
+      dragState.current = { dragging: true, offsetX: t.clientX - rect.left, offsetY: t.clientY - rect.top }
+      el.style.opacity = '0.85'
     }
-
-    function onTouchMove(e: TouchEvent) {
+    const onTouchMove = (e: TouchEvent) => {
       if (!dragState.current.dragging) return
       e.preventDefault()
-      const touch = e.touches[0]
-      const [x, y] = clamp(touch.clientX - dragState.current.offsetX, touch.clientY - dragState.current.offsetY)
-      el!.style.left = x + 'px'
-      el!.style.top = y + 'px'
-      el!.style.right = 'auto'
-      el!.style.bottom = 'auto'
-      el!.style.transform = 'none'
+      const t = e.touches[0]
+      const [x, y] = clamp(t.clientX - dragState.current.offsetX, t.clientY - dragState.current.offsetY)
+      el.style.left = x + 'px'
+      el.style.top = y + 'px'
+      el.style.right = 'auto'
+      el.style.bottom = 'auto'
+      el.style.transform = 'none'
     }
-
-    function onTouchEnd() {
+    const onTouchEnd = () => {
       if (dragState.current.dragging) {
         dragState.current.dragging = false
-        el!.style.opacity = '1'
+        el.style.opacity = '1'
       }
     }
-
-    function onResize() {
-      // Re-clamp if positioned via left/top
-      if (el!.style.left && el!.style.left !== 'auto') {
-        const [x, y] = clamp(parseFloat(el!.style.left), parseFloat(el!.style.top))
-        el!.style.left = x + 'px'
-        el!.style.top = y + 'px'
+    const onResize = () => {
+      if (el.style.left && el.style.left !== 'auto') {
+        const [x, y] = clamp(parseFloat(el.style.left), parseFloat(el.style.top))
+        el.style.left = x + 'px'
+        el.style.top = y + 'px'
       }
     }
 
@@ -231,97 +199,36 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     }
   }, [])
 
-  useEffect(() => {
-    const initConnection = async () => {
-      const socket = io()
-      socketRef.current = socket
+  /* ---- WebRTC ---- */
 
-      socket.on('connect', async () => {
-        setIsConnected(true)
-        await setupLocalMedia()
-        socket.emit('join', { channel: roomId, userdata: { name: '' } })
-      })
-
-      socket.on('disconnect', () => {
-        setIsConnected(false)
-        cleanup()
-      })
-
-      socket.on('addPeer', async (config: { peer_id: string; should_create_offer: boolean }) => {
-        await handleAddPeer(config)
-      })
-
-      socket.on('sessionDescription', (config: {
-        peer_id: string
-        session_description: RTCSessionDescriptionInit
-      }) => {
-        handleSessionDescription(config)
-      })
-
-      socket.on('iceCandidate', (config: {
-        peer_id: string
-        ice_candidate: RTCIceCandidateInit
-      }) => {
-        handleIceCandidate(config)
-      })
-
-      socket.on('removePeer', (config: { peer_id: string }) => {
-        handleRemovePeer(config)
-      })
-    }
-
-    initConnection()
-
-    return () => {
-      cleanup()
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-      }
-    }
-  }, [roomId])
-
-  const setupLocalMedia = async () => {
+  const setupLocalMedia = useCallback(async () => {
     if (localStreamRef.current) return
-
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: USE_AUDIO,
-        video: USE_VIDEO,
-      })
-
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: USE_AUDIO, video: USE_VIDEO })
       localStreamRef.current = stream
-
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
         localVideoRef.current.muted = true
         localVideoRef.current.volume = 0
       }
-
       if (MUTE_AUDIO_BY_DEFAULT) {
-        stream.getAudioTracks().forEach(track => track.enabled = false)
+        stream.getAudioTracks().forEach(t => t.enabled = false)
       }
-
       await enumerateDevices()
-    } catch (error) {
-      console.error('Access denied for audio/video:', error)
+    } catch (err) {
+      console.error('Access denied for audio/video:', err)
       alert('You chose not to provide access to the camera/microphone, demo will not work.')
     }
-  }
+  }, [enumerateDevices])
 
-  const handleAddPeer = async (config: { peer_id: string; should_create_offer: boolean }) => {
+  const handleAddPeer = useCallback(async (config: { peer_id: string; should_create_offer: boolean }) => {
     const peerId = config.peer_id
-
     if (peersRef.current[peerId]) return
 
-    const peerConnection = new RTCPeerConnection({
-      iceServers: ICE_SERVERS,
-    }) as PeerConnection
-    
-    peerConnection.peerId = peerId
-    peersRef.current[peerId] = peerConnection
-    setPeerCount(Object.keys(peersRef.current).length)
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    peersRef.current[peerId] = pc
 
-    peerConnection.onicecandidate = (event) => {
+    pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
         socketRef.current.emit('relayICECandidate', {
           peer_id: peerId,
@@ -333,258 +240,130 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       }
     }
 
-    peerConnection.ontrack = (event) => {
+    pc.ontrack = (event) => {
       if (event.track.kind === 'audio' && USE_VIDEO) return
-
-      const container = document.createElement('div')
-      container.className = 'video-cell'
-      container.dataset.peerId = peerId
-
-      // Inner wrapper hugs the video, border goes here
-      const inner = document.createElement('div')
-      inner.className = 'video-inner'
-
-      const videoElement = document.createElement('video')
-      videoElement.setAttribute('autoplay', 'true')
-      videoElement.setAttribute('playsinline', 'true')
-      if (MUTE_AUDIO_BY_DEFAULT) {
-        videoElement.setAttribute('muted', 'true')
-      }
-      videoElement.className = 'pointer-events-none'
-      videoElement.srcObject = event.streams[0]
-
-      const label = document.createElement('div')
-      label.className = 'peer-label'
-      label.textContent = `Peer ${peerId.slice(0, 8)}`
-
-      // Mute peer button
-      const muteBtn = document.createElement('button')
-      muteBtn.className = 'mute-btn'
-      muteBtn.title = 'Mute peer'
-      muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
-
-      // Web Audio API for reliable peer mute
-      const audioCtx = new AudioContext()
-      const source = audioCtx.createMediaStreamSource(event.streams[0])
-      const gainNode = audioCtx.createGain()
-      source.connect(gainNode)
-      gainNode.connect(audioCtx.destination)
-
-      videoElement.muted = true
-      videoElement.volume = 0
-
-      let peerMuted = false
-      muteBtn.addEventListener('click', (e) => {
-        e.stopPropagation()
-        peerMuted = !peerMuted
-        gainNode.gain.value = peerMuted ? 0 : 1
-        if (peerMuted) {
-          muteBtn.className = 'mute-btn muted'
-          muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
-          muteBtn.title = 'Unmute peer'
-        } else {
-          muteBtn.className = 'mute-btn'
-          muteBtn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>`
-          muteBtn.title = 'Mute peer'
-        }
+      setPeerList(prev => {
+        if (prev.some(p => p.id === peerId)) return prev
+        return [...prev, { id: peerId, stream: event.streams[0] }]
       })
-
-      // Click container to spotlight/unspotlight (not the mute button)
-      container.style.cursor = 'pointer'
-      container.addEventListener('click', () => {
-        setSpotlightPeerId(prev => prev === peerId ? null : peerId)
-      })
-
-      inner.appendChild(videoElement)
-      inner.appendChild(label)
-      inner.appendChild(muteBtn)
-      container.appendChild(inner)
-
-      if (videoGridRef.current) {
-        videoGridRef.current.appendChild(container)
-      }
     }
 
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        if (localStreamRef.current) {
-          peerConnection.addTrack(track, localStreamRef.current)
-        }
+      localStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localStreamRef.current!)
       })
     }
 
     if (config.should_create_offer) {
       try {
-        const localDescription = await peerConnection.createOffer()
-        await peerConnection.setLocalDescription(localDescription)
-        
-        if (socketRef.current) {
-          socketRef.current.emit('relaySessionDescription', {
-            peer_id: peerId,
-            session_description: localDescription,
-          })
-        }
-      } catch (error) {
-        console.error('Error sending offer:', error)
+        const desc = await pc.createOffer()
+        await pc.setLocalDescription(desc)
+        socketRef.current?.emit('relaySessionDescription', {
+          peer_id: peerId,
+          session_description: desc,
+        })
+      } catch (err) {
+        console.error('Error sending offer:', err)
       }
     }
-  }
+  }, [])
 
-  const handleSessionDescription = async (config: {
+  const handleSessionDescription = useCallback(async (config: {
     peer_id: string
     session_description: RTCSessionDescriptionInit
   }) => {
-    const peerId = config.peer_id
-    const peer = peersRef.current[peerId]
-    if (!peer) return
-
-    const remoteDescription = config.session_description
-
-    try {
-      await peer.setRemoteDescription(new RTCSessionDescription(remoteDescription))
-
-      if (remoteDescription.type === 'offer') {
-        const localDescription = await peer.createAnswer()
-        await peer.setLocalDescription(localDescription)
-
-        if (socketRef.current) {
-          socketRef.current.emit('relaySessionDescription', {
-            peer_id: peerId,
-            session_description: localDescription,
-          })
-        }
-      }
-    } catch (error) {
-      console.error('setRemoteDescription error:', error)
-    }
-  }
-
-  const handleIceCandidate = (config: {
-    peer_id: string
-    ice_candidate: RTCIceCandidateInit
-  }) => {
     const peer = peersRef.current[config.peer_id]
-    if (peer) {
-      peer.addIceCandidate(new RTCIceCandidate(config.ice_candidate))
-    }
-  }
-
-  const handleRemovePeer = (config: { peer_id: string }) => {
-    const peerId = config.peer_id
-
-    if (videoGridRef.current) {
-      const container = videoGridRef.current.querySelector(
-        `div[data-peer-id="${peerId}"]`
-      )
-      if (container) {
-        const videoElement = container.querySelector('video') as HTMLVideoElement
-        if (videoElement) videoElement.srcObject = null
-        container.remove()
+    if (!peer) return
+    try {
+      await peer.setRemoteDescription(new RTCSessionDescription(config.session_description))
+      if (config.session_description.type === 'offer') {
+        const desc = await peer.createAnswer()
+        await peer.setLocalDescription(desc)
+        socketRef.current?.emit('relaySessionDescription', {
+          peer_id: config.peer_id,
+          session_description: desc,
+        })
       }
+    } catch (err) {
+      console.error('setRemoteDescription error:', err)
     }
+  }, [])
 
+  const handleRemovePeer = useCallback((config: { peer_id: string }) => {
+    const peerId = config.peer_id
     if (peersRef.current[peerId]) {
       peersRef.current[peerId].close()
       delete peersRef.current[peerId]
-      setPeerCount(Object.keys(peersRef.current).length)
     }
-  }
+    setPeerList(prev => prev.filter(p => p.id !== peerId))
+    setSpotlightPeerId(prev => prev === peerId ? null : prev)
+  }, [])
 
-  const cleanup = () => {
+  const cleanup = useCallback(() => {
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current.getTracks().forEach(t => t.stop())
       localStreamRef.current = null
     }
-
-    Object.values(peersRef.current).forEach((peer) => peer.close())
+    Object.values(peersRef.current).forEach(pc => pc.close())
     peersRef.current = {}
-    setPeerCount(0)
+    setPeerList([])
+  }, [])
 
-    if (videoGridRef.current) {
-      videoGridRef.current.innerHTML = ''
+  useEffect(() => {
+    const socket = io()
+    socketRef.current = socket
+
+    socket.on('connect', async () => {
+      setIsConnected(true)
+      await setupLocalMedia()
+      socket.emit('join', { channel: roomId, userdata: { name: '' } })
+    })
+
+    socket.on('disconnect', () => {
+      setIsConnected(false)
+      cleanup()
+    })
+
+    socket.on('addPeer', handleAddPeer)
+    socket.on('sessionDescription', handleSessionDescription)
+    socket.on('iceCandidate', (config: { peer_id: string; ice_candidate: RTCIceCandidateInit }) => {
+      const peer = peersRef.current[config.peer_id]
+      if (peer) peer.addIceCandidate(new RTCIceCandidate(config.ice_candidate))
+    })
+    socket.on('removePeer', handleRemovePeer)
+
+    return () => {
+      cleanup()
+      socket.disconnect()
     }
-  }
+  }, [roomId, setupLocalMedia, handleAddPeer, handleSessionDescription, handleRemovePeer, cleanup])
+
+  /* ---- Controls ---- */
 
   const toggleAudio = () => {
     if (localStreamRef.current) {
-      const audioTracks = localStreamRef.current.getAudioTracks()
-      audioTracks.forEach(track => { track.enabled = !track.enabled })
-      setIsAudioMuted(!audioTracks[0]?.enabled)
+      const tracks = localStreamRef.current.getAudioTracks()
+      tracks.forEach(t => { t.enabled = !t.enabled })
+      setIsAudioMuted(!tracks[0]?.enabled)
     }
   }
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
-      const videoTracks = localStreamRef.current.getVideoTracks()
-      videoTracks.forEach(track => { track.enabled = !track.enabled })
-      setIsVideoMuted(!videoTracks[0]?.enabled)
+      const tracks = localStreamRef.current.getVideoTracks()
+      tracks.forEach(t => { t.enabled = !t.enabled })
+      setIsVideoMuted(!tracks[0]?.enabled)
     }
-  }
-
-  const confirmLeave = () => {
-    setShowLeaveConfirm(true)
   }
 
   const handleLeave = () => {
     cleanup()
-    if (socketRef.current) {
-      socketRef.current.disconnect()
-    }
+    socketRef.current?.disconnect()
     onLeave()
   }
 
-  // Apply spotlight layout whenever spotlightPeerId or peerCount changes
-  useEffect(() => {
-    const grid = videoGridRef.current
-    if (!grid) return
+  /* ---- Grid Classes ---- */
 
-    // Remove any existing thumbs container
-    const oldThumbs = grid.querySelector('.spotlight-thumbs')
-    if (oldThumbs) {
-      // Move children back to grid before removing
-      while (oldThumbs.firstChild) {
-        grid.appendChild(oldThumbs.firstChild)
-      }
-      oldThumbs.remove()
-    }
-
-    const cells = Array.from(grid.querySelectorAll(':scope > .video-cell')) as HTMLElement[]
-
-    if (spotlightPeerId) {
-      const mainCell = cells.find(c => c.dataset.peerId === spotlightPeerId)
-      const thumbCells = cells.filter(c => c.dataset.peerId !== spotlightPeerId)
-
-      if (mainCell) {
-        mainCell.className = 'video-cell spotlight-main'
-        grid.insertBefore(mainCell, grid.firstChild)
-      }
-
-      if (thumbCells.length > 0) {
-        const thumbsRow = document.createElement('div')
-        thumbsRow.className = 'spotlight-thumbs'
-        thumbCells.forEach(cell => {
-          cell.className = 'video-cell'
-          thumbsRow.appendChild(cell)
-        })
-        grid.appendChild(thumbsRow)
-      }
-    } else {
-      cells.forEach(cell => {
-        cell.className = 'video-cell'
-      })
-    }
-  }, [spotlightPeerId, peerCount])
-
-  // Clear spotlight if that peer leaves
-  useEffect(() => {
-    if (spotlightPeerId && !peersRef.current[spotlightPeerId]) {
-      setSpotlightPeerId(null)
-    }
-  }, [peerCount, spotlightPeerId])
-
-  // Grid layout:
-  // Mobile: 1 col for <=3, 2 col for >3
-  // Desktop: 1-3 peers in a single row, >3 uses 2 col (or 3 col if divisible by 3)
   function getGridClasses(count: number): string {
     if (count === 1) return 'video-grid-fit grid grid-cols-1 md:grid-cols-1 gap-2'
     if (count === 2) return 'video-grid-fit grid grid-cols-1 md:grid-cols-2 gap-2'
@@ -592,7 +371,11 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     if (count % 3 === 0) return 'video-grid-fit grid grid-cols-2 md:grid-cols-3 gap-2'
     return 'video-grid-fit grid grid-cols-2 gap-2'
   }
-  const gridClasses = spotlightPeerId ? '' : getGridClasses(peerCount)
+
+  /* ---- Render ---- */
+
+  const spotlightPeer = peerList.find(p => p.id === spotlightPeerId)
+  const thumbPeers = spotlightPeerId ? peerList.filter(p => p.id !== spotlightPeerId) : []
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -624,7 +407,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
             )}
           </div>
           <button
-            onClick={confirmLeave}
+            onClick={() => setShowLeaveConfirm(true)}
             className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
           >
             Leave
@@ -635,17 +418,50 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col">
         <div className="w-full h-full flex flex-col justify-center">
-          {peerCount === 0 && (
+          {peerCount === 0 ? (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
               <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
+          ) : spotlightPeerId && spotlightPeer ? (
+            <div className="spotlight-layout h-full">
+              <PeerVideo
+                key={spotlightPeer.id}
+                peerId={spotlightPeer.id}
+                stream={spotlightPeer.stream}
+                isSpotlight
+                isThumb={false}
+                onSelect={() => setSpotlightPeerId(null)}
+              />
+              {thumbPeers.length > 0 && (
+                <div className="spotlight-thumbs">
+                  {thumbPeers.map(p => (
+                    <PeerVideo
+                      key={p.id}
+                      peerId={p.id}
+                      stream={p.stream}
+                      isSpotlight={false}
+                      isThumb
+                      onSelect={() => setSpotlightPeerId(p.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className={`w-full h-full ${getGridClasses(peerCount)}`}>
+              {peerList.map(p => (
+                <PeerVideo
+                  key={p.id}
+                  peerId={p.id}
+                  stream={p.stream}
+                  isSpotlight={false}
+                  isThumb={false}
+                  onSelect={() => setSpotlightPeerId(p.id)}
+                />
+              ))}
+            </div>
           )}
-          <div
-            ref={videoGridRef}
-            className={spotlightPeerId ? 'spotlight-layout h-full' : `w-full h-full ${gridClasses}`}
-            style={{ display: peerCount === 0 ? 'none' : undefined }}
-          />
         </div>
       </div>
 
@@ -692,7 +508,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
             </button>
           </div>
-
           <div className="space-y-4">
             <DeviceSelect
               label="Microphone"
@@ -702,7 +517,6 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               onSelect={(id) => replaceTrack('audio', id)}
               fallbackLabel="Microphone"
             />
-
             <DeviceSelect
               label="Camera"
               icon={<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>}
@@ -720,11 +534,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         <div className="mx-auto max-w-7xl flex justify-center items-center gap-3">
           <button
             onClick={toggleAudio}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              isAudioMuted
-                ? 'bg-signal text-white hover:brightness-110'
-                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
-            } active:scale-[0.95]`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isAudioMuted ? 'bg-signal text-white hover:brightness-110' : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'} active:scale-[0.95]`}
             title={isAudioMuted ? 'Unmute microphone' : 'Mute microphone'}
           >
             {isAudioMuted ? (
@@ -733,14 +543,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
             )}
           </button>
-          
+
           <button
             onClick={toggleVideo}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              isVideoMuted
-                ? 'bg-signal text-white hover:brightness-110'
-                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
-            } active:scale-[0.95]`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isVideoMuted ? 'bg-signal text-white hover:brightness-110' : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'} active:scale-[0.95]`}
             title={isVideoMuted ? 'Turn on camera' : 'Turn off camera'}
           >
             {isVideoMuted ? (
@@ -752,18 +558,14 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
           <button
             onClick={() => { setShowSettings(!showSettings); enumerateDevices() }}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-              showSettings
-                ? 'bg-electric text-white hover:brightness-110'
-                : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'
-            } active:scale-[0.95]`}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${showSettings ? 'bg-electric text-white hover:brightness-110' : 'bg-white/5 border border-white/15 text-paper hover:bg-white/10'} active:scale-[0.95]`}
             title="Device settings"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
           </button>
-          
+
           <button
-            onClick={confirmLeave}
+            onClick={() => setShowLeaveConfirm(true)}
             className="w-12 h-12 rounded-full bg-signal text-white flex items-center justify-center transition-all hover:brightness-110 active:scale-[0.95]"
             title="Leave room"
           >
