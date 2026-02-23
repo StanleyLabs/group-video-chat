@@ -55,7 +55,7 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
       className={`
         relative overflow-hidden rounded-xl cursor-pointer bg-[#1a1d24]
         ${isSpotlight ? 'border-2 border-electric' : 'border border-white/10'}
-        ${isThumb ? 'w-[120px] md:w-[180px] h-full' : ''}
+        ${isThumb ? 'max-w-[120px] md:max-w-[180px] h-full' : ''}
       `}
     >
       <video

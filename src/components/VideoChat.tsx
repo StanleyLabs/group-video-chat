@@ -146,7 +146,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
                 onSelect={() => send({ type: 'SPOTLIGHT', peerId: null })}
               />
               {thumbPeers.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto shrink-0 h-20 md:h-[110px]">
+                <div className="flex flex-wrap gap-2 overflow-x-auto shrink-0">
                   {thumbPeers.map(p => (
                     <PeerVideo
                       key={p.id}
