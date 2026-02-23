@@ -607,9 +607,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   // Mobile: 1 col for <=3, 2 col for >3
   // Desktop: 1-3 peers in a single row, >3 uses 2 col (or 3 col if divisible by 3)
   function getGridClasses(count: number): string {
-    if (count === 1) return 'grid grid-cols-1 md:grid-cols-1 gap-4 max-w-3xl mx-auto'
-    if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto'
-    if (count === 3) return 'grid grid-cols-1 md:grid-cols-3 gap-4 max-w-6xl mx-auto'
+    if (count === 1) return 'grid grid-cols-1 md:grid-cols-1 gap-4'
+    if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4'
+    if (count === 3) return 'grid grid-cols-1 md:grid-cols-3 gap-4'
     if (count % 3 === 0) return 'grid grid-cols-2 md:grid-cols-3 gap-4'
     return 'grid grid-cols-2 gap-4'
   }
@@ -655,7 +655,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-auto flex flex-col">
-        <div className="mx-auto max-w-5xl w-full my-auto">
+        <div className="mx-auto w-full my-auto">
           {peerCount === 0 && (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
