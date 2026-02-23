@@ -366,7 +366,7 @@ function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onN
             <button
               onClick={onNameSave}
               title="Set name"
-              className="shrink-0 px-2.5 py-1.5 bg-electric/10 border border-electric/30 text-electric text-xs font-medium rounded-lg transition-all hover:bg-electric/20 active:scale-[0.95]"
+              className="shrink-0 px-3 py-1.5 bg-electric/10 border border-electric/30 text-electric text-sm font-medium rounded-lg transition-all hover:bg-electric/20 active:scale-[0.95]"
             >
               Save
             </button>
