@@ -28,7 +28,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
   const [selectedAudioDevice, setSelectedAudioDevice] = useState('')
   const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
-  const [expandedPeer, setExpandedPeer] = useState<string | null>(null)
+  const [spotlightPeerId, setSpotlightPeerId] = useState<string | null>(null)
   const [deviceToast, setDeviceToast] = useState(false)
   
   const socketRef = useRef<Socket | null>(null)
@@ -385,34 +385,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         }
       })
 
-      // Click container to expand/collapse (not the mute button)
+      // Click container to spotlight/unspotlight (not the mute button)
       container.style.cursor = 'pointer'
       container.addEventListener('click', () => {
-        const grid = videoGridRef.current
-        if (!grid) return
-        const wasExpanded = container.classList.contains('expanded')
-
-        // Collapse all expanded cells - restore original classes
-        grid.querySelectorAll('.video-cell.expanded').forEach(c => {
-          c.classList.remove('expanded')
-          c.className = 'video-cell relative aspect-video'
-          c.style.cursor = 'pointer'
-          const vid = c.querySelector('video')
-          if (vid) vid.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
-        })
-
-        if (!wasExpanded) {
-          container.classList.add('expanded')
-          // Override classes for expanded state
-          container.className = 'video-cell expanded relative col-span-full'
-          videoElement.className = 'w-full rounded-xl border-2 border-electric bg-graphite pointer-events-none'
-          videoElement.style.maxHeight = '70vh'
-          videoElement.style.objectFit = 'contain'
-          container.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        } else {
-          videoElement.style.maxHeight = ''
-          videoElement.style.objectFit = ''
-        }
+        setSpotlightPeerId(prev => prev === peerId ? null : peerId)
       })
 
       container.appendChild(videoElement)
@@ -552,6 +528,81 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
+  // Apply spotlight layout whenever spotlightPeerId or peerCount changes
+  useEffect(() => {
+    const grid = videoGridRef.current
+    if (!grid) return
+
+    // Remove any existing thumbs container
+    const oldThumbs = grid.querySelector('.spotlight-thumbs')
+    if (oldThumbs) {
+      // Move children back to grid before removing
+      while (oldThumbs.firstChild) {
+        grid.appendChild(oldThumbs.firstChild)
+      }
+      oldThumbs.remove()
+    }
+
+    const cells = Array.from(grid.querySelectorAll(':scope > .video-cell')) as HTMLElement[]
+
+    if (spotlightPeerId) {
+      // Spotlight mode
+      const mainCell = cells.find(c => c.dataset.peerId === spotlightPeerId)
+      const thumbCells = cells.filter(c => c.dataset.peerId !== spotlightPeerId)
+
+      // Style the main cell
+      if (mainCell) {
+        const vid = mainCell.querySelector('video') as HTMLVideoElement
+        mainCell.className = 'video-cell relative'
+        mainCell.style.cursor = 'pointer'
+        if (vid) {
+          vid.className = 'w-full rounded-xl border-2 border-electric bg-graphite pointer-events-none'
+          vid.style.maxHeight = '60vh'
+          vid.style.objectFit = 'contain'
+        }
+        // Ensure main is first child
+        grid.insertBefore(mainCell, grid.firstChild)
+      }
+
+      // Create thumbs row and move other cells into it
+      if (thumbCells.length > 0) {
+        const thumbsRow = document.createElement('div')
+        thumbsRow.className = 'spotlight-thumbs'
+        thumbCells.forEach(cell => {
+          const vid = cell.querySelector('video') as HTMLVideoElement
+          cell.className = 'video-cell relative aspect-video'
+          cell.style.cursor = 'pointer'
+          if (vid) {
+            vid.className = 'absolute inset-0 w-full h-full object-cover rounded-lg border border-white/10 bg-graphite pointer-events-none'
+            vid.style.maxHeight = ''
+            vid.style.objectFit = ''
+          }
+          thumbsRow.appendChild(cell)
+        })
+        grid.appendChild(thumbsRow)
+      }
+    } else {
+      // Grid mode: restore all to normal
+      cells.forEach(cell => {
+        const vid = cell.querySelector('video') as HTMLVideoElement
+        cell.className = 'video-cell relative aspect-video'
+        cell.style.cursor = 'pointer'
+        if (vid) {
+          vid.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
+          vid.style.maxHeight = ''
+          vid.style.objectFit = ''
+        }
+      })
+    }
+  }, [spotlightPeerId, peerCount])
+
+  // Clear spotlight if that peer leaves
+  useEffect(() => {
+    if (spotlightPeerId && !peersRef.current[spotlightPeerId]) {
+      setSpotlightPeerId(null)
+    }
+  }, [peerCount, spotlightPeerId])
+
   // Grid layout:
   // Mobile: 1 col for <=3, 2 col for >3
   // Desktop: 1-3 peers in a single row, >3 uses 2 col (or 3 col if divisible by 3)
@@ -562,7 +613,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     if (count % 3 === 0) return 'grid grid-cols-2 md:grid-cols-3 gap-4'
     return 'grid grid-cols-2 gap-4'
   }
-  const gridClasses = getGridClasses(peerCount)
+  const gridClasses = spotlightPeerId ? '' : getGridClasses(peerCount)
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -604,17 +655,20 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <div className="mx-auto max-w-5xl h-full flex items-center justify-center">
-          {peerCount === 0 ? (
-            <div className="text-center">
-              <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
-              <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
-            </div>
-          ) : (
-            <div className={`w-full ${gridClasses}`}>
-              <div ref={videoGridRef} className="contents" />
+        <div className="mx-auto max-w-5xl">
+          {peerCount === 0 && (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
+                <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
+              </div>
             </div>
           )}
+          <div
+            ref={videoGridRef}
+            className={spotlightPeerId ? 'spotlight-layout' : `w-full ${gridClasses}`}
+            style={{ display: peerCount === 0 ? 'none' : undefined }}
+          />
         </div>
       </div>
 
