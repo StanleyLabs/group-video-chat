@@ -59,3 +59,29 @@ body {
   position: relative;
   z-index: 2;
 }
+
+/* Mobile landscape: hide top bar, compact controls */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-hide {
+    display: none !important;
+  }
+  .landscape-compact {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .landscape-compact button {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+  }
+  .landscape-compact svg {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-pip {
+    bottom: 2.75rem !important;
+    width: 5rem !important;
+  }
+}

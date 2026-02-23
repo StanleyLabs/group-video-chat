@@ -67,7 +67,7 @@ export default function ControlsBar({
       )}
 
       {/* Controls bar */}
-      <div className="shrink-0 border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4">
+      <div className="shrink-0 border-t border-white/10 bg-graphite/50 backdrop-blur-sm px-6 py-4 landscape-compact">
         <div className="mx-auto max-w-7xl flex justify-center items-center gap-3">
           <ControlButton
             active={isAudioMuted}

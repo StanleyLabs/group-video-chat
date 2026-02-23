@@ -49,7 +49,7 @@ const LocalVideo = forwardRef<HTMLDivElement, LocalVideoProps>(
     return (
       <div
         ref={pipRef}
-        className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-10 group ${isPortrait ? 'w-24 sm:w-32' : 'w-40 sm:w-56'}`}
+        className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-10 group landscape-pip ${isPortrait ? 'w-24 sm:w-32' : 'w-40 sm:w-56'}`}
         style={{ cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
       >
         <div className="relative rounded-xl overflow-hidden border-2 border-electric shadow-lg shadow-electric/10">

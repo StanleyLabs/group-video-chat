@@ -238,7 +238,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
 
       {/* Main video area */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden flex flex-col">
-        <div ref={layoutRef} className="w-full h-[70vh] flex flex-col justify-center">
+        <div ref={layoutRef} className="w-full h-full flex flex-col justify-center">
           {peerCount === 0 ? (
             <div className="text-center py-12">
               <div className="text-fog/60 text-sm font-mono mb-2">
@@ -334,7 +334,7 @@ function TopBar({ roomId, isConnected, peerCount, displayName, savedName, onName
   onLeave: () => void
 }) {
   return (
-    <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm">
+    <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm landscape-hide">
       <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <h2 className="hidden sm:block text-sm sm:text-lg font-display font-semibold text-paper truncate">
