@@ -392,12 +392,26 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         if (!grid) return
         const wasExpanded = container.classList.contains('expanded')
 
-        // Collapse all
-        grid.querySelectorAll('.video-cell.expanded').forEach(c => c.classList.remove('expanded'))
+        // Collapse all expanded cells - restore original classes
+        grid.querySelectorAll('.video-cell.expanded').forEach(c => {
+          c.classList.remove('expanded')
+          c.className = 'video-cell relative aspect-video'
+          c.style.cursor = 'pointer'
+          const vid = c.querySelector('video')
+          if (vid) vid.className = 'absolute inset-0 w-full h-full object-cover rounded-xl border border-white/10 bg-graphite pointer-events-none'
+        })
 
         if (!wasExpanded) {
           container.classList.add('expanded')
+          // Override classes for expanded state
+          container.className = 'video-cell expanded relative col-span-full'
+          videoElement.className = 'w-full rounded-xl border-2 border-electric bg-graphite pointer-events-none'
+          videoElement.style.maxHeight = '70vh'
+          videoElement.style.objectFit = 'contain'
           container.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else {
+          videoElement.style.maxHeight = ''
+          videoElement.style.objectFit = ''
         }
       })
 
@@ -538,10 +552,14 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     onLeave()
   }
 
-  // Grid: 1 col for <=3, 2 col default for >3, 3 col only if divisible by 3
+  // Grid layout:
+  // Mobile: 1 col for <=3, 2 col for >3
+  // Desktop: 1-3 peers in a single row, >3 uses 2 col (or 3 col if divisible by 3)
   function getGridClasses(count: number): string {
-    if (count <= 3) return 'grid grid-cols-1 gap-4 max-w-3xl mx-auto'
-    if (count % 3 === 0) return 'grid grid-cols-2 sm:grid-cols-3 gap-4'
+    if (count === 1) return 'grid grid-cols-1 md:grid-cols-1 gap-4 max-w-3xl mx-auto'
+    if (count === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl mx-auto'
+    if (count === 3) return 'grid grid-cols-1 md:grid-cols-3 gap-4 max-w-6xl mx-auto'
+    if (count % 3 === 0) return 'grid grid-cols-2 md:grid-cols-3 gap-4'
     return 'grid grid-cols-2 gap-4'
   }
   const gridClasses = getGridClasses(peerCount)
