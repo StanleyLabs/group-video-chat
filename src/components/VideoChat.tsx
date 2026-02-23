@@ -365,11 +365,12 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
   /* ---- Grid Classes ---- */
 
   function getGridClasses(count: number): string {
-    if (count === 1) return 'video-grid-fit grid grid-cols-1 md:grid-cols-1 gap-2'
-    if (count === 2) return 'video-grid-fit grid grid-cols-1 md:grid-cols-2 gap-2'
-    if (count === 3) return 'video-grid-fit grid grid-cols-1 md:grid-cols-3 gap-2'
-    if (count % 3 === 0) return 'video-grid-fit grid grid-cols-2 md:grid-cols-3 gap-2'
-    return 'video-grid-fit grid grid-cols-2 gap-2'
+    const base = 'grid gap-2 [grid-auto-rows:1fr] content-center'
+    if (count === 1) return `${base} grid-cols-1 md:grid-cols-1`
+    if (count === 2) return `${base} grid-cols-1 md:grid-cols-2`
+    if (count === 3) return `${base} grid-cols-1 md:grid-cols-3`
+    if (count % 3 === 0) return `${base} grid-cols-2 md:grid-cols-3`
+    return `${base} grid-cols-2`
   }
 
   /* ---- Render ---- */
@@ -424,7 +425,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
           ) : spotlightPeerId && spotlightPeer ? (
-            <div className="spotlight-layout h-full">
+            <div className="flex flex-col gap-2 min-h-0 h-full">
               <PeerVideo
                 key={spotlightPeer.id}
                 peerId={spotlightPeer.id}
@@ -434,7 +435,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
                 onSelect={() => setSpotlightPeerId(null)}
               />
               {thumbPeers.length > 0 && (
-                <div className="spotlight-thumbs">
+                <div className="flex gap-2 overflow-x-auto shrink-0 h-20 md:h-[110px]">
                   {thumbPeers.map(p => (
                     <PeerVideo
                       key={p.id}
