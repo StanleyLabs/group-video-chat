@@ -10,6 +10,7 @@ interface UseWebRTCOptions {
   onDisconnected: () => void
   onPeerAdded: (peerId: string, stream: MediaStream) => void
   onPeerRemoved: (peerId: string) => void
+  onPeerName: (peerId: string, name: string) => void
 }
 
 export function useWebRTC({
@@ -19,6 +20,7 @@ export function useWebRTC({
   onDisconnected,
   onPeerAdded,
   onPeerRemoved,
+  onPeerName,
 }: UseWebRTCOptions) {
   const socketRef = useRef<Socket | null>(null)
   const peersRef = useRef<Record<string, RTCPeerConnection>>({})
@@ -126,13 +128,21 @@ export function useWebRTC({
       onPeerRemoved(peerId)
     })
 
+    socket.on('peerName', (config: { peer_id: string; name: string }) => {
+      onPeerName(config.peer_id, config.name)
+    })
+
     return () => {
       Object.values(peersRef.current).forEach(pc => pc.close())
       peersRef.current = {}
       socket.disconnect()
       socketRef.current = null
     }
-  }, [roomId, localStream, onConnected, onDisconnected, onPeerAdded, onPeerRemoved])
+  }, [roomId, localStream, onConnected, onDisconnected, onPeerAdded, onPeerRemoved, onPeerName])
 
-  return { getSocket, replaceTrackInPeers }
+  const sendName = useCallback((name: string) => {
+    socketRef.current?.emit('relayName', { name })
+  }, [])
+
+  return { getSocket, replaceTrackInPeers, sendName }
 }

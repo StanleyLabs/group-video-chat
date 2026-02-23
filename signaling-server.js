@@ -7,6 +7,7 @@ export default function initSignaling(server) {
 
     io.on('connection', (socket) => {
         socket.channels = {}
+        socket.displayName = ''
         sockets[socket.id] = socket
 
         console.log(`[${socket.id}] connection accepted`)
@@ -41,6 +42,15 @@ export default function initSignaling(server) {
                     peer_id: id,
                     should_create_offer: true,
                 })
+
+                // Send existing peer's name to the new joiner
+                const existing = channels[channel][id]
+                if (existing.displayName) {
+                    socket.emit('peerName', {
+                        peer_id: id,
+                        name: existing.displayName,
+                    })
+                }
             }
 
             channels[channel][socket.id] = socket
@@ -66,6 +76,21 @@ export default function initSignaling(server) {
                     peer_id: socket.id,
                     session_description,
                 })
+            }
+        })
+
+        socket.on('relayName', (config) => {
+            const { name } = config
+            socket.displayName = name || ''
+            for (const channel in socket.channels) {
+                for (const id in channels[channel]) {
+                    if (id !== socket.id) {
+                        channels[channel][id].emit('peerName', {
+                            peer_id: socket.id,
+                            name: socket.displayName,
+                        })
+                    }
+                }
             }
         })
 

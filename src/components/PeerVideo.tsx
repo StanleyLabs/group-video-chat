@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 
 interface PeerVideoProps {
   peerId: string
+  name: string
   stream: MediaStream
   isSpotlight: boolean
   isThumb: boolean
@@ -51,7 +52,7 @@ function applyVideoRect(video: HTMLVideoElement, overlay: HTMLDivElement) {
   video.style.clipPath = `inset(${top}px ${left}px ${top}px ${left}px round ${r}px)`
 }
 
-export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSelect }: PeerVideoProps) {
+export default function PeerVideo({ peerId, name, stream, isSpotlight, isThumb, onSelect }: PeerVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [isMuted, setIsMuted] = useState(false)
@@ -146,7 +147,7 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
             border border-white/10 font-medium text-paper rounded-md
             ${isThumb ? 'top-1 left-1 px-1 py-0.5 text-[0.5rem]' : 'top-2 left-2 px-2 py-1 text-[0.7rem]'}
           `}>
-            Peer {peerId.slice(0, 8)}
+            {name || `Peer ${peerId.slice(0, 8)}`}
           </div>
 
           {/* Mute */}

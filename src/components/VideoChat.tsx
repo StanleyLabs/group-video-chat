@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, type RefObject } from 'react'
+import { useRef, useCallback, useEffect, useState, type RefObject } from 'react'
 import { useMachine } from '@xstate/react'
 import { roomMachine } from '../machines/roomMachine'
 import { useWebRTC } from '../hooks/useWebRTC'
@@ -8,6 +8,7 @@ import { getGridClasses } from '../utils/gridLayout'
 import PeerVideo from './PeerVideo'
 import LocalVideo from './LocalVideo'
 import ControlsBar from './ControlsBar'
+import LeaveModal from './LeaveModal'
 
 /**
  * Resizes a grid container so its columns tightly fit the actual video
@@ -126,6 +127,10 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     send({ type: 'PEER_REMOVED', peerId })
   }, [send])
 
+  const onPeerName = useCallback((peerId: string, name: string) => {
+    send({ type: 'PEER_NAME', peerId, name })
+  }, [send])
+
   const onConnected = useCallback(() => {
     send({ type: 'SOCKET_CONNECTED' })
   }, [send])
@@ -134,13 +139,14 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     send({ type: 'SOCKET_DISCONNECTED' })
   }, [send])
 
-  const { replaceTrackInPeers } = useWebRTC({
+  const { replaceTrackInPeers, sendName } = useWebRTC({
     roomId,
     localStream,
     onConnected,
     onDisconnected,
     onPeerAdded,
     onPeerRemoved,
+    onPeerName,
   })
 
   // Device management
@@ -186,6 +192,16 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
     prevModeRef.current = currentMode
   }, [currentMode])
 
+  // Display name
+  const [displayName, setDisplayName] = useState('')
+  const handleNameChange = useCallback((name: string) => {
+    setDisplayName(name)
+    sendName(name)
+  }, [sendName])
+
+  // Leave confirmation (shared between top bar and controls bar)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
   const handleLeave = () => {
     send({ type: 'LEAVE' })
     onLeave()
@@ -216,7 +232,9 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         roomId={roomId}
         isConnected={isConnected}
         peerCount={peerCount}
-        onLeave={handleLeave}
+        displayName={displayName}
+        onNameChange={handleNameChange}
+        onLeave={() => setShowLeaveConfirm(true)}
       />
 
       {/* Main video area */}
@@ -236,6 +254,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
               <PeerVideo
                 key={spotlightPeer.id}
                 peerId={spotlightPeer.id}
+                name={spotlightPeer.name}
                 stream={spotlightPeer.stream}
                 isSpotlight
                 isThumb={false}
@@ -247,6 +266,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
                     <PeerVideo
                       key={p.id}
                       peerId={p.id}
+                      name={p.name}
                       stream={p.stream}
                       isSpotlight={false}
                       isThumb
@@ -262,6 +282,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
                 <PeerVideo
                   key={p.id}
                   peerId={p.id}
+                  name={p.name}
                   stream={p.stream}
                   isSpotlight={false}
                   isThumb={false}
@@ -286,26 +307,35 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         isVideoMuted={isVideoMuted}
         onToggleAudio={() => send({ type: 'TOGGLE_AUDIO' })}
         onToggleVideo={() => send({ type: 'TOGGLE_VIDEO' })}
-        onLeave={handleLeave}
+        onLeave={() => setShowLeaveConfirm(true)}
         devices={devices}
       />
+
+      {showLeaveConfirm && (
+        <LeaveModal
+          onConfirm={handleLeave}
+          onCancel={() => setShowLeaveConfirm(false)}
+        />
+      )}
     </div>
   )
 }
 
 /* ---- Sub-components ---- */
 
-function TopBar({ roomId, isConnected, peerCount, onLeave }: {
+function TopBar({ roomId, isConnected, peerCount, displayName, onNameChange, onLeave }: {
   roomId: string
   isConnected: boolean
   peerCount: number
+  displayName: string
+  onNameChange: (name: string) => void
   onLeave: () => void
 }) {
   return (
     <div className="shrink-0 border-b border-white/10 bg-graphite/50 backdrop-blur-sm">
       <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <h2 className="text-sm sm:text-lg font-display font-semibold text-paper truncate">
+          <h2 className="hidden sm:block text-sm sm:text-lg font-display font-semibold text-paper truncate">
             Room: <span className="text-electric font-mono">{roomId}</span>
           </h2>
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full shrink-0">
@@ -321,12 +351,22 @@ function TopBar({ roomId, isConnected, peerCount, onLeave }: {
             </div>
           )}
         </div>
-        <button
-          onClick={onLeave}
-          className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
-        >
-          Leave
-        </button>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => onNameChange(e.target.value)}
+            placeholder="Your name"
+            maxLength={24}
+            className="w-28 sm:w-36 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-paper placeholder:text-fog/40 outline-none focus:border-electric focus:ring-1 focus:ring-electric/20 transition-all"
+          />
+          <button
+            onClick={onLeave}
+            className="shrink-0 px-4 py-2 bg-signal text-white font-medium rounded-lg transition-all hover:scale-[1.02] hover:brightness-110 active:scale-[0.98] text-sm whitespace-nowrap"
+          >
+            Leave
+          </button>
+        </div>
       </div>
     </div>
   )

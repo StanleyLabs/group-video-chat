@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import DeviceSelect from './DeviceSelect'
-import LeaveModal from './LeaveModal'
 
 interface DevicesAPI {
   audioDevices: MediaDeviceInfo[]
@@ -29,7 +28,6 @@ export default function ControlsBar({
   devices,
 }: ControlsBarProps) {
   const [showSettings, setShowSettings] = useState(false)
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   return (
     <>
@@ -97,7 +95,7 @@ export default function ControlsBar({
           </ControlButton>
 
           <button
-            onClick={() => setShowLeaveConfirm(true)}
+            onClick={onLeave}
             className="w-12 h-12 rounded-full bg-signal text-white flex items-center justify-center transition-all hover:brightness-110 active:scale-[0.95]"
             title="Leave room"
           >
@@ -105,13 +103,6 @@ export default function ControlsBar({
           </button>
         </div>
       </div>
-
-      {showLeaveConfirm && (
-        <LeaveModal
-          onConfirm={onLeave}
-          onCancel={() => setShowLeaveConfirm(false)}
-        />
-      )}
     </>
   )
 }
