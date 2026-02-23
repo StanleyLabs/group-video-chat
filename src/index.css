@@ -45,25 +45,59 @@ video {
   object-fit: cover;
 }
 
+/* Grid that fits all videos within the container, no scroll */
+.video-grid-fit {
+  grid-auto-rows: 1fr;
+}
+
+.video-grid-fit .video-cell {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.video-grid-fit .video-cell video {
+  /* Override aspect-ratio so video fills cell */
+  aspect-ratio: unset !important;
+  height: 100% !important;
+}
+
 /* Spotlight layout - main video on top, thumbnails row below */
 .spotlight-layout {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.spotlight-layout .spotlight-main {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.spotlight-layout .spotlight-main video {
+  height: 100% !important;
+  max-height: unset !important;
 }
 
 .spotlight-thumbs {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+  flex-shrink: 0;
+  height: 80px;
 }
 
 .spotlight-thumbs .video-cell {
   flex: 0 0 auto;
   width: 120px;
+  height: 100%;
 }
 
 @media (min-width: 768px) {
+  .spotlight-thumbs {
+    height: 110px;
+  }
   .spotlight-thumbs .video-cell {
     width: 180px;
   }
