@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface UseDevicesOptions {
   localStream: MediaStream | null
@@ -11,6 +11,7 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
   const [selectedAudioDevice, setSelectedAudioDevice] = useState('')
   const [selectedVideoDevice, setSelectedVideoDevice] = useState('')
   const [showToast, setShowToast] = useState(false)
+  const toastTimer = useRef<number | null>(null)
 
   const enumerate = useCallback(async (toast = false) => {
     try {
@@ -27,7 +28,8 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
 
       if (toast) {
         setShowToast(true)
-        setTimeout(() => setShowToast(false), 2500)
+        if (toastTimer.current) clearTimeout(toastTimer.current)
+        toastTimer.current = window.setTimeout(() => setShowToast(false), 2500)
       }
     } catch (err) {
       console.error('Failed to enumerate devices:', err)
@@ -43,7 +45,10 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
   useEffect(() => {
     const handler = () => enumerate(true)
     navigator.mediaDevices.addEventListener('devicechange', handler)
-    return () => navigator.mediaDevices.removeEventListener('devicechange', handler)
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', handler)
+      if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
   }, [enumerate])
 
   const switchDevice = useCallback(async (kind: 'audio' | 'video', deviceId: string) => {
@@ -59,7 +64,16 @@ export function useDevices({ localStream, onTrackReplaced }: UseDevicesOptions) 
         ? newStream.getAudioTracks()[0]
         : newStream.getVideoTracks()[0]
 
-      if (!newTrack) return
+      if (!newTrack) {
+        // Stop all tracks from the unused stream
+        newStream.getTracks().forEach(t => t.stop())
+        return
+      }
+
+      // Stop any extra tracks we don't need from the new stream
+      newStream.getTracks().forEach(t => {
+        if (t !== newTrack) t.stop()
+      })
 
       // Replace in local stream
       const oldTrack = kind === 'audio'

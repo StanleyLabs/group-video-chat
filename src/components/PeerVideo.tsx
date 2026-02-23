@@ -30,8 +30,11 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
     video.volume = 0
 
     return () => {
-      audioCtx.close()
       gainRef.current = null
+      source.disconnect()
+      gain.disconnect()
+      audioCtx.close()
+      video.srcObject = null
     }
   }, [stream])
 

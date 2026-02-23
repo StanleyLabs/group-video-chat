@@ -84,6 +84,11 @@ export default function initSignaling(server) {
                 channels[channel][id].emit('removePeer', { peer_id: socket.id })
                 socket.emit('removePeer', { peer_id: id })
             }
+
+            // Clean up empty channels to prevent server memory growth
+            if (Object.keys(channels[channel]).length === 0) {
+                delete channels[channel]
+            }
         }
     })
 }
