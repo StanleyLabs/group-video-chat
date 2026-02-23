@@ -69,6 +69,14 @@ video {
   }
 }
 
+/* Shrink labels inside thumbnails */
+.spotlight-thumbs .peer-label {
+  font-size: 0.55rem;
+  padding: 2px 5px;
+  top: 4px;
+  left: 4px;
+}
+
 
 /* Grain texture overlay */
 .grain {

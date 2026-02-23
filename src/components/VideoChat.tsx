@@ -350,7 +350,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       videoElement.srcObject = event.streams[0]
 
       const label = document.createElement('div')
-      label.className = 'absolute top-3 left-3 px-3 py-1.5 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-lg text-xs font-medium text-paper pointer-events-none'
+      label.className = 'peer-label absolute top-2 left-2 px-2 py-1 bg-graphite/80 backdrop-blur-sm border border-white/10 rounded-md text-xs font-medium text-paper pointer-events-none'
       label.textContent = `Peer ${peerId.slice(0, 8)}`
 
       // Mute peer button
@@ -557,7 +557,7 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
         mainCell.style.cursor = 'pointer'
         if (vid) {
           vid.className = 'w-full rounded-xl border-2 border-electric bg-graphite pointer-events-none'
-          vid.style.maxHeight = '60vh'
+          vid.style.maxHeight = '45vh'
           vid.style.objectFit = 'contain'
         }
         // Ensure main is first child
@@ -654,14 +654,12 @@ export default function VideoChat({ roomId, onLeave }: VideoChatProps) {
       </div>
 
       {/* Main video area */}
-      <div className="flex-1 min-h-0 p-4 overflow-auto">
-        <div className="mx-auto max-w-5xl">
+      <div className="flex-1 min-h-0 p-4 overflow-auto flex flex-col">
+        <div className="mx-auto max-w-5xl w-full my-auto">
           {peerCount === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
-                <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
-              </div>
+            <div className="text-center py-12">
+              <div className="text-fog/60 text-sm font-mono mb-2">Waiting for others to join...</div>
+              <div className="text-fog/40 text-xs font-mono">Share room ID: <span className="text-electric">{roomId}</span></div>
             </div>
           )}
           <div
