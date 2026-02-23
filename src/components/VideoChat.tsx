@@ -12,15 +12,15 @@ import ControlsBar from './ControlsBar'
 /**
  * Resizes a grid container so its columns tightly fit the actual video
  * content (accounting for object-contain letterboxing).
- * Reads the first <video>'s native aspect ratio + the grid's available height
- * to compute the ideal width, then sets it directly via DOM style.
+ * Observes the PARENT container (not the grid itself) to avoid feedback loops.
  */
 function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number) {
   const rafRef = useRef(0)
 
   useEffect(() => {
     const grid = gridRef.current
-    if (!grid || peerCount === 0) return
+    const parent = grid?.parentElement
+    if (!grid || !parent || peerCount === 0) return
 
     const recalc = () => {
       cancelAnimationFrame(rafRef.current)
@@ -28,22 +28,22 @@ function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number
         const video = grid.querySelector('video')
         if (!video || !video.videoWidth || !video.videoHeight) return
 
-        const gridH = grid.clientHeight
-        const gridW = grid.clientWidth
-        if (!gridH || !gridW) return
+        // Use parent dimensions (stable, we don't mutate the parent)
+        const availH = parent.clientHeight
+        const availW = parent.clientWidth
+        if (!availH || !availW) return
 
         const style = getComputedStyle(grid)
         const cols = style.gridTemplateColumns.split(' ').length
         const rows = Math.ceil(peerCount / cols)
         const gap = parseFloat(style.gap) || 0
 
-        const rowH = (gridH - gap * (rows - 1)) / rows
+        const rowH = (availH - gap * (rows - 1)) / rows
         const videoAspect = video.videoWidth / video.videoHeight
         const cellW = rowH * videoAspect
         const idealW = cellW * cols + gap * (cols - 1)
 
-        // Only shrink, never expand beyond available width
-        if (idealW < gridW) {
+        if (idealW < availW) {
           grid.style.maxWidth = `${idealW}px`
         } else {
           grid.style.maxWidth = ''
@@ -52,18 +52,17 @@ function useGridFit(gridRef: RefObject<HTMLDivElement | null>, peerCount: number
     }
 
     // Listen for video metadata on any video in the grid
-    const onMetadata = () => recalc()
-    grid.addEventListener('loadedmetadata', onMetadata, true) // capture phase for child videos
+    grid.addEventListener('loadedmetadata', recalc, true)
 
+    // Observe the parent - not the grid - to avoid resize feedback loops
     const ro = new ResizeObserver(recalc)
-    ro.observe(grid)
+    ro.observe(parent)
 
-    // Initial calc
     recalc()
 
     return () => {
       cancelAnimationFrame(rafRef.current)
-      grid.removeEventListener('loadedmetadata', onMetadata, true)
+      grid.removeEventListener('loadedmetadata', recalc, true)
       ro.disconnect()
       grid.style.maxWidth = ''
     }
