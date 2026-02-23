@@ -121,7 +121,7 @@ export default function PeerVideo({ peerId, stream, isSpotlight, isThumb, onSele
       onClick={onSelect}
       className={`
         relative overflow-hidden rounded-xl cursor-pointer
-        ${isThumb ? 'max-w-[120px] md:max-w-[180px] h-full' : ''}
+        ${isThumb ? 'max-w-[120px] md:max-w-[180px] h-full' : 'aspect-video'}
       `}
     >
       <video
